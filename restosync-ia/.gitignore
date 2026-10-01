@@ -1,0 +1,22 @@
+# Entorno virtual y caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Variables de entorno y secretos
+.env
+!.env.example
+
+# Archivos de pruebas e IDEs
+.pytest_cache/
+.coverage
+.vscode/
+.idea/
+
+# Archivos temporales del sistema operativo
+.DS_Store
+Thumbs.db
+Desktop.ini

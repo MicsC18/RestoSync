@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@theme {
+  --color-resto-manteca: #F9F6F0;
+  --color-resto-ciruela: #3A1124;
+  --color-resto-oliva: #4A5D23;
+  --color-resto-dorado: #E0A96D;
+  --color-resto-acero: #7393B3;
+}

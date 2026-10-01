@@ -1,0 +1,19 @@
+# Variables de entorno y claves secretas
+.env
+.env.local
+.env.*.local
+*.env
+
+# Entornos virtuales e IA
+venv/
+__pycache__/
+
+# Dependencias y compilados
+node_modules/
+.next/
+.gradle/
+build/
+bin/
+.DS_Store
+
+*.log
