@@ -159,7 +159,7 @@ export default function DashboardPage() {
           {/* USUARIO */}
           <div className="flex items-center gap-3">
 
-            <div className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-xl border border-resto-ciruela/10">
+            <Link href="/opciones" className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-xl border border-resto-ciruela/10 hover:bg-resto-oliva/5 transition-colors cursor-pointer">
 
               <div className="w-8 h-8 rounded-full bg-resto-oliva text-resto-manteca flex items-center justify-center font-bold">
                 M
@@ -175,7 +175,7 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-            </div>
+            </Link>
 
             <button
               onClick={handleLogout}

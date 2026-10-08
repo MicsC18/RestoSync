@@ -7,7 +7,6 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types, errors
-import pdfplumber
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -46,27 +45,15 @@ def listar_modelos():
 async def escanear_ticket(file: UploadFile = File(...)):
     try:
         contenido_archivo = await file.read()
-        filename = file.filename.lower()
-        texto_extraido = ""
-
-        if filename.endswith(".pdf"):
-            with pdfplumber.open(io.BytesIO(contenido_archivo)) as pdf:
-                for pagina in pdf.pages:
-                    texto = pagina.extract_text()
-                    if texto:
-                        texto_extraido += texto + "\n"
-        else:
-            texto_extraido = "Imagen de ticket o remito subida por el usuario."
-
-        if not texto_extraido.strip():
-            raise HTTPException(
-                status_code=400,
-                detail="No se pudo extraer texto del documento. Asegúrate de subir un PDF con texto legible."
-            )
+        
+        documento_part = types.Part.from_bytes(
+            data=contenido_archivo,
+            mime_type=file.content_type or "image/jpeg"
+        )
 
         prompt_instrucciones = """
         Eres un asistente experto en gestión de inventarios y control gastronómico. 
-        Analiza el texto extraído del documento de compra proporcionado. 
+        Analiza la imagen o el documento de compra proporcionado. 
         Extrae los productos comprados y devuelve un JSON estricto con una lista llamada "itemsEncontrados".
         Cada objeto de la lista debe tener exactamente estas claves:
         - "nombre": Nombre claro del producto.
@@ -76,8 +63,6 @@ async def escanear_ticket(file: UploadFile = File(...)):
         - "diasRestantes": Días estimados de vida útil restantes a partir de la fecha actual, basándote en la fecha de vencimiento del documento o estimándola según el tipo de alimento si no la trae explícita.
         """
 
-        contenido_prompt = f"{prompt_instrucciones}\n\nTexto del documento:\n{texto_extraido}"
-        
         config = types.GenerateContentConfig(
             response_mime_type="application/json"
         )
@@ -98,7 +83,7 @@ async def escanear_ticket(file: UploadFile = File(...)):
                 print(f"Probando modelo: {modelo}...")
                 response = client.models.generate_content(
                     model=modelo,
-                    contents=contenido_prompt,
+                    contents=[prompt_instrucciones, documento_part],
                     config=config
                 )
                 if response and response.text:
