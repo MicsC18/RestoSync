@@ -3,7 +3,6 @@ uvicorn
 pydantic
 pandas
 requests
-pdfplumber
 python-multipart
 google-genai
 python-dotenv
