@@ -321,7 +321,8 @@ export default function RegistroPage() {
                 <input
                   id="ticket"
                   type="file"
-                  accept=".png,.jpg,.jpeg,.pdf"
+                  accept="image/*,application/pdf"
+                  capture="environment"
                   onChange={handleFileChange}
                   className="hidden"
                 />
