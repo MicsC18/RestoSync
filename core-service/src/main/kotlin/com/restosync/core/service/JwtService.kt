@@ -27,4 +27,18 @@ class JwtService {
             .signWith(getSigningKey()) 
             .compact()
     }
+
+    fun extraerRestauranteId(token: String): Long? {
+        return try {
+            val jwt = if (token.startsWith("Bearer ")) token.substring(7) else token
+            val claims = Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(jwt)
+                .payload
+            (claims["restauranteId"] as? Number)?.toLong()
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

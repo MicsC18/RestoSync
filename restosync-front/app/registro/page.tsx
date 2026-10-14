@@ -17,6 +17,7 @@ export default function RegistroPage() {
   const modo = searchParams.get('modo') || 'ticket';
 
   const [archivo, setArchivo] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -63,8 +64,9 @@ export default function RegistroPage() {
       );
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
         throw new Error(
-          'Error al procesar el ticket en el microservicio de IA'
+          errorData?.detail || 'Error al procesar el ticket en el microservicio de IA'
         );
       }
 
@@ -72,14 +74,14 @@ export default function RegistroPage() {
 
       setProductos(data.itemsEncontrados || []);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         'Error de conexión con Python:',
         error
       );
 
       alert(
-        'No se pudo conectar con el microservicio de IA (Puerto 8000)'
+        error.message || 'No se pudo conectar con el microservicio de IA (Puerto 8000)'
       );
     } finally {
       setLoading(false);
@@ -194,6 +196,10 @@ export default function RegistroPage() {
               icono: prod.icono,
               unidadMedida: 'Unidades',
               stockMinimo: 1,
+              cantidad: prod.cantidad,
+              diasRestantes: prod.diasRestantes,
+              estado: prod.estado || 'Cerrado',
+              vencimiento: `${prod.diasRestantes} días`,
             }),
           }
         );
@@ -315,7 +321,27 @@ export default function RegistroPage() {
               {/* INPUT ARCHIVO */}
               <label
                 htmlFor="ticket"
-                className="group block cursor-pointer rounded-2xl border-2 border-dashed border-resto-oliva/30 bg-resto-manteca/50 hover:bg-resto-oliva/5 hover:border-resto-oliva transition-all p-10 text-center"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    setArchivo(e.dataTransfer.files[0]);
+                    setMensajeExito('');
+                  }
+                }}
+                className={`group block cursor-pointer rounded-2xl border-2 border-dashed transition-all p-10 text-center ${
+                  isDragging
+                    ? 'border-resto-oliva bg-resto-oliva/15 scale-[1.01]'
+                    : 'border-resto-oliva/30 bg-resto-manteca/50 hover:bg-resto-oliva/5 hover:border-resto-oliva'
+                }`}
               >
 
                 <input
@@ -328,17 +354,19 @@ export default function RegistroPage() {
                 />
 
                 <div className="text-5xl mb-5 group-hover:scale-110 transition-transform">
-                  {archivo ? '📄' : '🧾'}
+                  {archivo ? '📄' : isDragging ? '📥' : '🧾'}
                 </div>
 
                 <h4 className="text-lg font-bold">
                   {archivo
                     ? archivo.name
-                    : 'Subí tu ticket o factura'}
+                    : isDragging
+                    ? '¡Soltá tu ticket acá!'
+                    : 'Subí o arrastrá tu ticket o factura'}
                 </h4>
 
                 <p className="text-sm text-resto-acero mt-2">
-                  Hacé clic para seleccionar un archivo
+                  Arrastrá el archivo acá o hacé clic para seleccionarlo
                 </p>
 
                 <span className="inline-block mt-4 text-xs font-semibold text-resto-oliva">

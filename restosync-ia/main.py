@@ -69,10 +69,11 @@ async def escanear_ticket(file: UploadFile = File(...)):
 
         # Bucle con modelos válidos activos en tu cuenta
         modelos_candidatos = [
+            'gemini-3.5-flash-lite',
             'gemini-3.8-flash',
             'gemini-flash-latest',
-            'gemini-3.5-flash',
-            'gemini-2.5-flash-lite'
+            'gemini-3.7-flash',
+            'gemini-3.5-flash'
         ]
 
         response = None
