@@ -1,19 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAuthSession } from '@/lib/use-auth-session';
+import AppNavigation from '@/components/app-navigation';
 
 export default function OpcionesPage() {
+  const { token, checking, logout } = useAuthSession();
   const [apiKey, setApiKey] = useState('');
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    // Solo verificamos si existe para dar feedback visual, pero NO la mostramos
-    const savedKey = localStorage.getItem('user_gemini_api_key');
-    if (savedKey) {
-      setApiKey('••••••••••••••••••••••••••••••••••••••');
-    }
-  }, []);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +16,14 @@ export default function OpcionesPage() {
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
+
+  if (checking || !token) {
+    return (
+      <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
+        <p>Verificando sesión...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-resto-manteca text-resto-ciruela">
@@ -34,23 +37,7 @@ export default function OpcionesPage() {
             <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">Tu cocina sincronizada</p>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-2">
-            <Link href="/dashboard" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Inicio</Link>
-            <Link href="/inventario" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Inventario</Link>
-            <Link href="/registro?modo=ticket" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Agregar compra</Link>
-            <Link href="/analitica" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Analítica</Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <Link href="/opciones" className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-xl border border-resto-oliva bg-resto-oliva/5">
-              <div className="w-8 h-8 rounded-full bg-resto-oliva text-resto-manteca flex items-center justify-center font-bold">M</div>
-              <div>
-                <p className="text-xs font-bold text-resto-ciruela">Mi cocina</p>
-                <p className="text-[10px] text-resto-acero">Configuración</p>
-              </div>
-            </Link>
-            <Link href="/login" className="text-xs font-bold text-resto-ciruela px-3 py-2 rounded-lg hover:bg-resto-ciruela hover:text-resto-manteca transition-all">Salir</Link>
-          </div>
+          <AppNavigation activePage="opciones" onLogout={logout} />
         </div>
       </header>
 

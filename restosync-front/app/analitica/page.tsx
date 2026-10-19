@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useAuthSession } from '@/lib/use-auth-session';
+import AppNavigation from '@/components/app-navigation';
 
 export default function AnaliticaPage() {
+  const { token, checking, logout } = useAuthSession();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -12,6 +15,14 @@ export default function AnaliticaPage() {
       setLoading(false);
     }, 1000);
   }, []);
+
+  if (checking || !token) {
+    return (
+      <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
+        <p>Verificando sesión...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-resto-manteca text-resto-ciruela">
@@ -25,23 +36,7 @@ export default function AnaliticaPage() {
             <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">Tu cocina sincronizada</p>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-2">
-            <Link href="/dashboard" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Inicio</Link>
-            <Link href="/inventario" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Inventario</Link>
-            <Link href="/registro?modo=ticket" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Agregar compra</Link>
-            <Link href="/analitica" className="px-4 py-2 rounded-xl bg-resto-ciruela text-resto-manteca text-sm font-semibold">Analítica</Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <div className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-xl border border-resto-ciruela/10">
-              <div className="w-8 h-8 rounded-full bg-resto-oliva text-resto-manteca flex items-center justify-center font-bold">M</div>
-              <div>
-                <p className="text-xs font-bold">Mi cocina</p>
-                <p className="text-[10px] text-resto-acero">Cuenta activa</p>
-              </div>
-            </div>
-            <Link href="/login" className="text-xs font-bold text-resto-ciruela px-3 py-2 rounded-lg hover:bg-resto-ciruela hover:text-resto-manteca transition-all">Salir</Link>
-          </div>
+          <AppNavigation activePage="analitica" onLogout={logout} />
         </div>
       </header>
 

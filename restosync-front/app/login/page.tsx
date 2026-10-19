@@ -2,8 +2,11 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/lib/api';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [error, setError] = useState('');
@@ -15,9 +18,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        'http://localhost:8080/api/v1/auth/login',
-        {
+      const response = await fetch(apiUrl('/api/v1/auth/login'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -26,8 +27,7 @@ export default function LoginPage() {
             email,
             contrasena,
           }),
-        }
-      );
+      });
 
       const data = await response.json();
 
@@ -37,13 +37,16 @@ export default function LoginPage() {
         );
       }
 
+      if (typeof data.token !== 'string') {
+        throw new Error('El backend no devolvió una sesión válida.');
+      }
+
       localStorage.setItem('token', data.token);
 
-      alert('¡Login exitoso! Bienvenido a RestoSync.');
-      window.location.href = '/dashboard';
+      router.push('/dashboard');
 
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {
       setLoading(false);
     }
@@ -265,4 +268,3 @@ export default function LoginPage() {
     </main>
   );
 }
-
