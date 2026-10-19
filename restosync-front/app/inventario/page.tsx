@@ -2,44 +2,102 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { apiUrl } from '@/lib/api';
+import { useAuthSession } from '@/lib/use-auth-session';
+import AppNavigation from '@/components/app-navigation';
 
 type Producto = {
   id: number;
   nombre: string;
   categoria: string;
   icono?: string;
-  vencimiento: string;
+  vencimiento: string | null;
   diasRestantes: number;
   estado: 'Cerrado' | 'Abierto';
   stock: number;
   unidad: string;
 };
 
+type InsumoApi = {
+  id: number;
+  nombre: string;
+  categoria?: string | null;
+  icono?: string | null;
+  vencimiento?: string | null;
+  diasRestantes?: number;
+  estado?: string;
+  cantidad?: number | null;
+  unidadMedida?: string;
+};
+
 export default function InventarioPage() {
+  const { token, checking, logout } = useAuthSession();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
   const [filtroCategoria, setFiltroCategoria] = useState<string>('Todas');
 
   useEffect(() => {
-    // Simulando fetch de base de datos con timeout para efecto de carga
-    setTimeout(() => {
-      setProductos([
-        { id: 1, nombre: 'Leche Larga Vida 1L', categoria: 'Lácteos', icono: '🥛', vencimiento: '20/12/2026', diasRestantes: 74, estado: 'Cerrado', stock: 15, unidad: 'Unidades' },
-        { id: 2, nombre: 'Queso Cheddar', categoria: 'Lácteos', icono: '🧀', vencimiento: '15/10/2026', diasRestantes: 8, estado: 'Abierto', stock: 2.5, unidad: 'Kg' },
-        { id: 3, nombre: 'Tomates Perita', categoria: 'Verduras', icono: '🍅', vencimiento: '10/10/2026', diasRestantes: 3, estado: 'Cerrado', stock: 10, unidad: 'Kg' },
-        { id: 4, nombre: 'Carne Picada', categoria: 'Carnes', icono: '🥩', vencimiento: '08/10/2026', diasRestantes: 1, estado: 'Abierto', stock: 5, unidad: 'Kg' },
-        { id: 5, nombre: 'Levadura Fresca', categoria: 'Almacén', icono: '🍞', vencimiento: '30/10/2026', diasRestantes: 23, estado: 'Cerrado', stock: 1, unidad: 'Unidades' },
-        { id: 6, nombre: 'Cebollas', categoria: 'Verduras', icono: '🧅', vencimiento: '15/11/2026', diasRestantes: 39, estado: 'Cerrado', stock: 20, unidad: 'Kg' },
-      ]);
-      setLoading(false);
-    }, 800);
-  }, []);
+    if (checking || !token) return;
 
-  const categorias = ['Todas', 'Lácteos', 'Verduras', 'Carnes', 'Almacén', 'Bebidas'];
+    let active = true;
+    const cargarProductos = async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const response = await fetch(apiUrl('/api/v1/insumos'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error('No se pudo cargar el inventario.');
+
+        const insumos: InsumoApi[] = await response.json();
+        if (active) {
+          setProductos(insumos.map((insumo) => ({
+            id: insumo.id,
+            nombre: insumo.nombre,
+            categoria: insumo.categoria || 'Almacén',
+            icono: insumo.icono || '📦',
+            vencimiento: insumo.vencimiento ?? null,
+            diasRestantes: insumo.diasRestantes ?? 0,
+            estado: insumo.estado === 'Abierto' ? 'Abierto' : 'Cerrado',
+            stock: insumo.cantidad ?? 0,
+            unidad: insumo.unidadMedida || 'Unidades',
+          })));
+        }
+      } catch (loadError: unknown) {
+        if (active) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'Error de conexión con el backend.'
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void cargarProductos();
+    return () => {
+      active = false;
+    };
+  }, [checking, retryCount, token]);
+
+  const categorias = ['Todas', ...new Set(productos.map((producto) => producto.categoria))];
 
   const productosFiltrados = filtroCategoria === 'Todas' 
     ? productos 
     : productos.filter(p => p.categoria === filtroCategoria);
+
+  if (checking || !token) {
+    return (
+      <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
+        <p>Verificando sesión...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-resto-manteca text-resto-ciruela">
@@ -53,23 +111,7 @@ export default function InventarioPage() {
             <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">Tu cocina sincronizada</p>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-2">
-            <Link href="/dashboard" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Inicio</Link>
-            <Link href="/inventario" className="px-4 py-2 rounded-xl bg-resto-ciruela text-resto-manteca text-sm font-semibold">Inventario</Link>
-            <Link href="/registro?modo=ticket" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Agregar compra</Link>
-            <Link href="/analitica" className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors">Analítica</Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <div className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-xl border border-resto-ciruela/10">
-              <div className="w-8 h-8 rounded-full bg-resto-oliva text-resto-manteca flex items-center justify-center font-bold">M</div>
-              <div>
-                <p className="text-xs font-bold">Mi cocina</p>
-                <p className="text-[10px] text-resto-acero">Cuenta activa</p>
-              </div>
-            </div>
-            <Link href="/login" className="text-xs font-bold text-resto-ciruela px-3 py-2 rounded-lg hover:bg-resto-ciruela hover:text-resto-manteca transition-all">Salir</Link>
-          </div>
+          <AppNavigation activePage="inventario" onLogout={logout} />
         </div>
       </header>
 
@@ -120,6 +162,17 @@ export default function InventarioPage() {
               <div className="w-10 h-10 mx-auto mb-4 rounded-full border-4 border-resto-oliva/20 border-t-resto-oliva animate-spin" />
               <p className="text-resto-acero font-semibold">Cargando tu almacén...</p>
             </div>
+          ) : error ? (
+            <div className="py-16 text-center" role="alert">
+              <p className="text-red-700">{error}</p>
+              <button
+                type="button"
+                onClick={() => setRetryCount((count) => count + 1)}
+                className="mt-4 rounded-lg bg-resto-oliva px-4 py-2 text-sm font-bold text-resto-manteca"
+              >
+                Reintentar
+              </button>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -158,7 +211,7 @@ export default function InventarioPage() {
                           }`}>
                             En {prod.diasRestantes} días
                           </span>
-                          <span className="text-sm text-resto-acero hidden sm:inline-block">({prod.vencimiento})</span>
+                          {prod.vencimiento && <span className="text-sm text-resto-acero hidden sm:inline-block">({prod.vencimiento})</span>}
                         </div>
                       </td>
                       <td className="p-5">
@@ -172,7 +225,7 @@ export default function InventarioPage() {
                         </span>
                       </td>
                       <td className="p-5 text-right">
-                        <button className="w-9 h-9 rounded-lg border border-resto-ciruela/10 text-resto-acero hover:bg-resto-oliva hover:text-resto-manteca hover:border-transparent transition-all">
+                        <button disabled title="La edición todavía no está disponible" aria-label={`Editar ${prod.nombre} (no disponible)`} className="w-9 h-9 rounded-lg border border-resto-ciruela/10 text-resto-acero opacity-40 cursor-not-allowed">
                           ✎
                         </button>
                       </td>
