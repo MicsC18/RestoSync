@@ -2,8 +2,10 @@
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { aiServiceUrl, apiUrl } from '@/lib/api';
+import { aiServiceUrl, apiUrl, authHeaders } from '@/lib/api';
 import { useAuthSession } from '@/lib/use-auth-session';
+import { escanearTicketMock, usarMockIa } from '@/lib/ia-mock';
+import { CATEGORIAS_BASE, iconoParaInsumo } from '@/lib/insumos';
 
 type SpeechRecognitionResult = ArrayLike<{ transcript: string }>;
 
@@ -33,7 +35,7 @@ type ProductoDetectado = {
 };
 
 export default function RegistroClient() {
-  const { token, checking } = useAuthSession();
+  const { token, checking, localActivoId } = useAuthSession();
   const searchParams = useSearchParams();
   const modo = searchParams.get('modo') || 'ticket';
 
@@ -73,10 +75,16 @@ export default function RegistroClient() {
     setLoading(true);
     setMensajeExito('');
 
-    const formData = new FormData();
-    formData.append('file', archivo);
-
     try {
+      if (usarMockIa()) {
+        const data = await escanearTicketMock(archivo);
+        setProductos(data.itemsEncontrados);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', archivo);
+
       const response = await fetch(
         aiServiceUrl('/api/v1/ia/escanear-ticket'),
         {
@@ -168,7 +176,7 @@ export default function RegistroClient() {
       {
         nombre,
         categoria: 'Almacén',
-        icono: '📦',
+        icono: iconoParaInsumo(nombre, 'Almacén'),
         cantidad: 1,
         diasRestantes: 30,
         estado: 'Cerrado',
@@ -221,10 +229,7 @@ export default function RegistroClient() {
       for (const prod of productos) {
         const response = await fetch(apiUrl('/api/v1/insumos'), {
             method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
+            headers: authHeaders(token, localActivoId),
             body: JSON.stringify({
               nombre: prod.nombre,
               categoria: prod.categoria,
@@ -239,8 +244,12 @@ export default function RegistroClient() {
         });
 
         if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          const detalle =
+            (data && (data.message || data.error)) ||
+            `HTTP ${response.status}`;
           throw new Error(
-            `No se pudo guardar ${prod.nombre}`
+            `No se pudo guardar ${prod.nombre}: ${detalle}`
           );
         }
 
@@ -601,9 +610,21 @@ export default function RegistroClient() {
                         className="w-full mt-1 border-b border-resto-ciruela/10 bg-transparent py-1 font-bold text-resto-ciruela focus:outline-none focus:border-resto-oliva"
                       />
 
-                      <p className="text-xs text-resto-acero mt-2">
-                        {prod.categoria}
-                      </p>
+                      <select
+                        value={prod.categoria}
+                        onChange={(e) =>
+                          actualizarProducto(
+                            index,
+                            'categoria',
+                            e.target.value
+                          )
+                        }
+                        className="mt-2 rounded-lg border border-resto-ciruela/10 bg-resto-manteca px-2 py-1 text-xs text-resto-acero focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                      >
+                        {Array.from(new Set([...CATEGORIAS_BASE, prod.categoria])).map((categoria) => (
+                          <option key={categoria} value={categoria}>{categoria}</option>
+                        ))}
+                      </select>
 
                     </div>
 
@@ -633,15 +654,26 @@ export default function RegistroClient() {
 
 
                     {/* VENCIMIENTO */}
-                    <div className="text-left md:text-right md:min-w-[100px]">
+                    <div className="w-full md:w-28">
 
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-resto-acero">
-                        Vencimiento
-                      </p>
+                      <label className="text-[10px] uppercase tracking-wider font-bold text-resto-acero">
+                        Vence en (días)
+                      </label>
 
-                      <p className="font-bold mt-1">
-                        {prod.diasRestantes} días
-                      </p>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={prod.diasRestantes}
+                        onChange={(e) =>
+                          actualizarProducto(
+                            index,
+                            'diasRestantes',
+                            Number(e.target.value)
+                          )
+                        }
+                        className="w-full mt-1 rounded-xl border border-resto-ciruela/10 bg-resto-manteca px-3 py-2 text-center font-bold focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                      />
 
                     </div>
 

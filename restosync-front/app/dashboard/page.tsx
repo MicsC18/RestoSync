@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, authHeaders } from '@/lib/api';
 import { useAuthSession } from '@/lib/use-auth-session';
-import AppNavigation from '@/components/app-navigation';
+import AppHeader from '@/components/app-header';
 
 type Producto = {
   id: number;
@@ -14,36 +14,51 @@ type Producto = {
   vencimiento: string;
   diasRestantes: number;
   estado: 'Cerrado' | 'Abierto';
+  cantidad?: number | null;
 };
 
 export default function DashboardPage() {
-  const { token, checking, logout } = useAuthSession();
+  const {
+    token,
+    checking,
+    logout,
+    sesion,
+    localActivoId,
+    setLocalActivoId,
+  } = useAuthSession();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loadingProductos, setLoadingProductos] = useState(true);
   const [errorProductos, setErrorProductos] = useState('');
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
 
   useEffect(() => {
-    if (checking || !token) return;
+    if (checking || !token || localActivoId == null) {
+      if (!checking && token && localActivoId == null) {
+        setLoadingProductos(false);
+        setProductos([]);
+        setErrorProductos('Creá un local para ver el inventario.');
+      }
+      return;
+    }
 
     const storedToken = token;
     const fetchProductos = async () => {
+      setLoadingProductos(true);
       try {
         const response = await fetch(apiUrl('/api/v1/insumos'), {
             method: 'GET',
-            headers: {
-              Authorization: `Bearer ${storedToken}`,
-              'Content-Type': 'application/json',
-            },
+            headers: authHeaders(storedToken, localActivoId),
         });
 
         if (!response.ok) {
           throw new Error('No se pudieron obtener los productos de la base de datos');
         }
 
-        const data = await response.json();
+        const data: Producto[] = await response.json();
 
-        setProductos(data);
+        // Las filas que quedaron en cero (p. ej. tras preparar un plato) no se
+        // muestran en el resumen; siguen en la base para las recetas del menú.
+        setProductos(data.filter((producto) => (producto.cantidad ?? 0) > 0));
         setErrorProductos('');
       } catch (error: unknown) {
         setErrorProductos(
@@ -55,7 +70,7 @@ export default function DashboardPage() {
     };
 
     fetchProductos();
-  }, [checking, token]);
+  }, [checking, token, localActivoId]);
 
   const handleLogout = logout;
 
@@ -94,27 +109,14 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-resto-manteca text-resto-ciruela">
 
-      {/* =========================
-          NAVBAR
-      ========================= */}
-      <header className="sticky top-0 z-50 border-b border-resto-ciruela/10 bg-resto-manteca/95 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
-
-          {/* LOGO */}
-          <Link href="/dashboard" className="shrink-0">
-            <h1 className="text-2xl font-black tracking-tight">
-              Resto<span className="text-resto-dorado">Sync.</span>
-            </h1>
-
-            <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">
-              Tu cocina sincronizada
-            </p>
-          </Link>
-
-          <AppNavigation activePage="dashboard" onLogout={handleLogout} />
-
-        </div>
-      </header>
+      <AppHeader
+        activePage="dashboard"
+        onLogout={handleLogout}
+        rol={sesion?.rol}
+        locales={sesion?.locales ?? []}
+        localActivoId={localActivoId}
+        onLocalChange={setLocalActivoId}
+      />
 
 
       {/* =========================
