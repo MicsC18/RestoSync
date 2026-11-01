@@ -13,3 +13,17 @@ export function apiUrl(path: string) {
 export function aiServiceUrl(path: string) {
   return `${aiServiceBaseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 }
+
+export function authHeaders(
+  token: string,
+  localId?: number | null
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+  if (localId != null) {
+    headers['X-Local-Id'] = String(localId);
+  }
+  return headers;
+}

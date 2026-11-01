@@ -1,12 +1,18 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 import { useAuthSession } from '@/lib/use-auth-session';
-import AppNavigation from '@/components/app-navigation';
+import AppHeader from '@/components/app-header';
 
 export default function OpcionesPage() {
-  const { token, checking, logout } = useAuthSession();
+  const {
+    token,
+    checking,
+    logout,
+    sesion,
+    localActivoId,
+    setLocalActivoId,
+  } = useAuthSession();
   const [apiKey, setApiKey] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -27,19 +33,14 @@ export default function OpcionesPage() {
 
   return (
     <main className="min-h-screen bg-resto-manteca text-resto-ciruela">
-      {/* NAVBAR */}
-      <header className="sticky top-0 z-50 border-b border-resto-ciruela/10 bg-resto-manteca/95 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
-          <Link href="/dashboard" className="shrink-0">
-            <h1 className="text-2xl font-black tracking-tight">
-              Resto<span className="text-resto-dorado">Sync.</span>
-            </h1>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">Tu cocina sincronizada</p>
-          </Link>
-
-          <AppNavigation activePage="opciones" onLogout={logout} />
-        </div>
-      </header>
+      <AppHeader
+        activePage="opciones"
+        onLogout={logout}
+        rol={sesion?.rol}
+        locales={sesion?.locales ?? []}
+        localActivoId={localActivoId}
+        onLocalChange={setLocalActivoId}
+      />
 
       {/* CONTENIDO */}
       <section className="max-w-3xl mx-auto px-6 lg:px-10 py-12">

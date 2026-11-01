@@ -2,27 +2,44 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import type { RolUsuario } from '@/lib/use-auth-session';
 
-type ActivePage = 'dashboard' | 'inventario' | 'analitica' | 'opciones';
+type ActivePage =
+  | 'dashboard'
+  | 'inventario'
+  | 'menu'
+  | 'mesas'
+  | 'analitica'
+  | 'opciones'
+  | 'locales'
+  | 'cuentas';
 
-const links = [
-  { href: '/dashboard', label: 'Inicio', page: 'dashboard' },
-  { href: '/inventario', label: 'Inventario', page: 'inventario' },
-  { href: '/registro?modo=ticket', label: 'Agregar compra', page: null },
-  { href: '/analitica', label: 'Analítica', page: 'analitica' },
-  { href: '/opciones', label: 'Configuración', page: 'opciones' },
-] as const;
+const linksBase = [
+  { href: '/dashboard', label: 'Inicio', page: 'dashboard' as const, adminOnly: false },
+  { href: '/inventario', label: 'Inventario', page: 'inventario' as const, adminOnly: false },
+  { href: '/menu', label: 'Menú', page: 'menu' as const, adminOnly: false },
+  { href: '/mesas', label: 'Mesas', page: 'mesas' as const, adminOnly: false },
+  { href: '/registro?modo=ticket', label: 'Agregar compra', page: null, adminOnly: false },
+  { href: '/analitica', label: 'Analítica', page: 'analitica' as const, adminOnly: false },
+  { href: '/locales', label: 'Locales', page: 'locales' as const, adminOnly: true },
+  { href: '/cuentas', label: 'Cuentas', page: 'cuentas' as const, adminOnly: true },
+  { href: '/opciones', label: 'Configuración', page: 'opciones' as const, adminOnly: false },
+];
 
 type AppNavigationProps = {
   activePage: ActivePage;
   onLogout: () => void;
+  rol?: RolUsuario | null;
 };
 
 export default function AppNavigation({
   activePage,
   onLogout,
+  rol,
 }: AppNavigationProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const esAdmin = rol === 'ADMIN_RESTAURANTE';
+  const links = linksBase.filter((link) => !link.adminOnly || esAdmin);
 
   const linkClass = (page: string | null) =>
     `block rounded-xl px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resto-oliva ${

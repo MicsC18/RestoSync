@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/lib/api';
+import { guardarSesionTrasAuth } from '@/lib/use-auth-session';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,7 +42,7 @@ export default function RegisterPage() {
         throw new Error('El backend no devolvió una sesión válida.');
       }
 
-      localStorage.setItem('token', data.token);
+      await guardarSesionTrasAuth(data.token);
       router.push('/dashboard');
 
     } catch (err: unknown) {
