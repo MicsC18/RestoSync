@@ -22,6 +22,16 @@ data class Insumo(
     val estado: String = "Cerrado",
     val vencimiento: String? = null,
 
+    /** Scope real del inventario (por local). */
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "local_id", nullable = true)
+    var local: Local? = null,
+
+    /**
+     * Columna legacy todavía presente en Neon con NOT NULL.
+     * Se rellena desde el local para no romper inserts hasta migrar del todo.
+     */
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "restaurante_id", nullable = true)

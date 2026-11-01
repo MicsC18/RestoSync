@@ -1,43 +1,50 @@
 package com.restosync.core.controller
 
+import com.restosync.core.dto.InsumoRequest
 import com.restosync.core.model.Insumo
-import com.restosync.core.repository.InsumoRepository
-import com.restosync.core.repository.RestauranteRepository
-import com.restosync.core.service.JwtService
+import com.restosync.core.security.SecurityUtils
+import com.restosync.core.service.InventarioService
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/api/v1/insumos")
-@CrossOrigin(origins = ["http://localhost:3000"])
 class InsumoController(
-    private val insumoRepository: InsumoRepository,
-    private val restauranteRepository: RestauranteRepository,
-    private val jwtService: JwtService
+    private val inventarioService: InventarioService
 ) {
 
     @GetMapping
     fun obtenerTodos(
-        @RequestHeader(value = "Authorization", required = false) authHeader: String?
+        @RequestHeader(value = "X-Local-Id", required = false) localIdHeader: Long?
     ): List<Insumo> {
-        val restauranteId = authHeader?.let { jwtService.extraerRestauranteId(it) }
-        return if (restauranteId != null) {
-            val lista = insumoRepository.findByRestauranteId(restauranteId)
-            if (lista.isNotEmpty()) lista else insumoRepository.findAll()
-        } else {
-            insumoRepository.findAll()
-        }
+        return inventarioService.listarInsumos(SecurityUtils.principalActual(), localIdHeader)
     }
 
+    /** Alta por IA/dictado (principal) o manual (auxiliar). Aplica merge §4.5. */
     @PostMapping
     fun crearInsumo(
-        @RequestBody insumo: Insumo,
-        @RequestHeader(value = "Authorization", required = false) authHeader: String?
+        @RequestBody request: InsumoRequest,
+        @RequestHeader(value = "X-Local-Id", required = false) localIdHeader: Long?
     ): Insumo {
-        val restauranteId = authHeader?.let { jwtService.extraerRestauranteId(it) }
-        val restaurante = restauranteId?.let { restauranteRepository.findById(it).orElse(null) }
-            ?: restauranteRepository.findAll().firstOrNull()
+        return inventarioService.registrarCompra(SecurityUtils.principalActual(), localIdHeader, request)
+    }
 
-        insumo.restaurante = restaurante
-        return insumoRepository.save(insumo)
+    /** Corrección de errores: cantidad, vencimiento, nombre, categoría, estado. */
+    @PutMapping("/{id}")
+    fun actualizarInsumo(
+        @PathVariable id: Long,
+        @RequestBody request: InsumoRequest,
+        @RequestHeader(value = "X-Local-Id", required = false) localIdHeader: Long?
+    ): Insumo {
+        return inventarioService.actualizarInsumo(SecurityUtils.principalActual(), localIdHeader, id, request)
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun eliminarInsumo(
+        @PathVariable id: Long,
+        @RequestHeader(value = "X-Local-Id", required = false) localIdHeader: Long?
+    ) {
+        inventarioService.eliminarInsumo(SecurityUtils.principalActual(), localIdHeader, id)
     }
 }
