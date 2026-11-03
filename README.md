@@ -11,7 +11,7 @@ desde tickets. **El proyecto no implementa pagos ni cobros.**
 |---|---|---|
 | `core-service` | Kotlin 2.1 · Spring Boot 4 · JPA · Spring Security · JWT | API de negocio (puerto **8080**) |
 | `restosync-front` | Next.js 16 · React 19 · Tailwind 4 · TypeScript | Interfaz web (puerto **3000**) |
-| `restosync-ia` | FastAPI · Gemini | Lectura de tickets de compra (puerto **8000**, opcional) |
+| `restosync-ia` | FastAPI · Gemini | Lectura de tickets de compra (puerto **8000**); guarda la `GEMINI_API_KEY` en su propio `.env` |
 | PostgreSQL (Neon) | Base en la nube | Persistencia |
 
 ## Requisitos
@@ -73,15 +73,19 @@ Variables en `.env.local`:
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8080
 NEXT_PUBLIC_AI_SERVICE_URL=http://localhost:8000
-# true = usa datos de ejemplo para la carga por IA (recomendado en local)
-# false = llama al microservicio real restosync-ia
-NEXT_PUBLIC_USE_IA_MOCK=true
+# false (default) = la lectura de tickets llama al microservicio restosync-ia
+# true = usa datos de ejemplo, sin levantar el puerto 8000 (solo para desarrollar)
+NEXT_PUBLIC_USE_IA_MOCK=false
 ```
 
-Con el mock activo **no hace falta levantar `restosync-ia`** para usar toda la aplicación:
-la carga de compras por ticket trae datos de ejemplo que después se confirman y guardan de verdad.
+Con el flag en `true` el escaneo de tickets trae datos de ejemplo que después se confirman y
+guardan de verdad; útil si no querés levantar `restosync-ia` mientras desarrollás.
 
-## 3. Microservicio de IA (`restosync-ia`, opcional)
+## 3. Microservicio de IA (`restosync-ia`)
+
+La lectura de tickets por IA usa este servicio: el navegador le envía el archivo directamente
+(CORS ya habilitado para el front) y **la `GEMINI_API_KEY` vive únicamente en su `.env`**;
+ningún otro módulo necesita configurar claves.
 
 ```powershell
 cd restosync-ia
@@ -92,7 +96,9 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-Después poné `NEXT_PUBLIC_USE_IA_MOCK=false` en el front y reiniciá `npm run dev`.
+Verificá que respondió con `GET http://localhost:8000/` (devuelve `{"estado": "activo", ...}`).
+Si preferís desarrollar sin el servicio, poné `NEXT_PUBLIC_USE_IA_MOCK=true` en el front y
+reiniciá `npm run dev`.
 
 ## Funcionalidades
 
@@ -101,7 +107,8 @@ Después poné `NEXT_PUBLIC_USE_IA_MOCK=false` en el front y reiniciá `npm run 
 - **Inventario por local** con lotes y vencimientos: cargar un insumo existente con el **mismo
   vencimiento suma** al lote; con **otro vencimiento crea una fila nueva** (una por vencimiento).
   Las filas agotadas se ocultan por defecto (toggle "Agotados") pero se conservan por auditoría.
-- **Carga por IA**: foto de ticket → productos sugeridos → confirmación y guardado (mock o servicio real).
+- **Carga por IA**: foto de ticket → el microservicio `restosync-ia` (Gemini) extrae los productos →
+  revisión editable → guardado en el local activo. El mock queda como opción de desarrollo.
   También hay CRUD correctivo manual de insumos.
 - **Menú y recetas**: platos por local con ingredientes; al **preparar** se descuenta stock
   agrupando las filas homónimas y consumiendo **FIFO por vencimiento**, con prevalidación de faltantes.

@@ -108,12 +108,15 @@ export default function RegistroClient() {
 
     } catch (error: unknown) {
       console.error(
-        'Error de conexión con Python:',
+        'Error de conexión con el servicio de IA:',
         error
       );
 
+      // fetch lanza TypeError cuando el microservicio no responde (caído o sin CORS).
       alert(
-        error instanceof Error
+        error instanceof TypeError
+          ? 'No se pudo conectar con el microservicio de IA (puerto 8000). Verificá que restosync-ia esté corriendo.'
+          : error instanceof Error
           ? error.message
           : 'No se pudo conectar con el microservicio de IA (Puerto 8000)'
       );

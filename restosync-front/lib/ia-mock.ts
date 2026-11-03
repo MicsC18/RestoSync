@@ -54,6 +54,11 @@ export async function escanearTicketMock(
   return { itemsEncontrados: ITEMS_EJEMPLO.map((item) => ({ ...item })) };
 }
 
+/**
+ * El camino principal es el microservicio restosync-ia (tiene la GEMINI_API_KEY en su .env).
+ * El mock solo se activa con el flag explícito NEXT_PUBLIC_USE_IA_MOCK=true,
+ * para desarrollar sin levantar el puerto 8000.
+ */
 export function usarMockIa(): boolean {
-  return process.env.NEXT_PUBLIC_USE_IA_MOCK !== 'false';
+  return process.env.NEXT_PUBLIC_USE_IA_MOCK === 'true';
 }
