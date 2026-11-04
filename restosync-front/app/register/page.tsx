@@ -2,8 +2,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/lib/api';
+import { guardarSesionTrasAuth } from '@/lib/use-auth-session';
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [nombreRestaurante, setNombreRestaurante] = useState('');
@@ -16,9 +20,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        'http://localhost:8080/api/v1/auth/register',
-        {
+      const response = await fetch(apiUrl('/api/v1/auth/register'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -26,8 +28,7 @@ export default function RegisterPage() {
             contrasena,
             nombreRestaurante,
           }),
-        }
-      );
+      });
 
       const data = await response.json();
 
@@ -37,15 +38,15 @@ export default function RegisterPage() {
         );
       }
 
-      // Guardamos el token
-      localStorage.setItem('token', data.token);
+      if (typeof data.token !== 'string') {
+        throw new Error('El backend no devolvió una sesión válida.');
+      }
 
-      alert('¡Registro exitoso! Tu restaurante ha sido creado.');
+      await guardarSesionTrasAuth(data.token);
+      router.push('/dashboard');
 
-      // router.push('/dashboard') -> para el futuro
-
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al registrar el usuario');
     } finally {
       setLoading(false);
     }

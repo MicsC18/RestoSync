@@ -2,6 +2,7 @@ package com.restosync.core.controller
 
 import com.restosync.core.model.Restaurante
 import com.restosync.core.repository.RestauranteRepository
+import com.restosync.core.security.SecurityUtils
 import org.springframework.web.bind.annotation.*
 
 @RestController
@@ -12,17 +13,15 @@ class RestauranteController(
 
     @GetMapping("/ping")
     fun ping(): String {
+        SecurityUtils.principalActual()
         return "¡El backend de RestoSync está vivo y funcionando!"
     }
 
-    // Endpoint GET para listar todos los restaurantes guardados
-   @GetMapping
-   fun obtenerTodos(): List<Restaurante> {
-        return restauranteRepository.findAll()
-    }
-    // Endpoint POST para registrar un nuevo restaurante
-    @PostMapping
-    fun crearRestaurante(@RequestBody restaurante: Restaurante): Restaurante {
-        return restauranteRepository.save(restaurante)
+    @GetMapping
+    fun obtenerTodos(): List<Restaurante> {
+        val principal = SecurityUtils.principalActual()
+        return restauranteRepository.findById(principal.restauranteId)
+            .map { listOf(it) }
+            .orElse(emptyList())
     }
 }

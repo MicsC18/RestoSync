@@ -1,5 +1,6 @@
 package com.restosync.core.repository
 
+import com.restosync.core.model.RolUsuario
 import com.restosync.core.model.Usuario
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
@@ -9,5 +10,7 @@ import java.util.Optional
 interface UsuarioRepository : JpaRepository <Usuario, Long> {
     
     fun findByEmail(email: String): Optional <Usuario>
-    
+
+    fun findByRestauranteIdAndRol(restauranteId: Long, rol: RolUsuario): List<Usuario>
+
 }

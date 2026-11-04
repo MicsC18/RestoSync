@@ -2,6 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { apiUrl, authHeaders } from '@/lib/api';
+import { useAuthSession } from '@/lib/use-auth-session';
+import AppHeader from '@/components/app-header';
 
 type Producto = {
   id: number;
@@ -11,51 +14,55 @@ type Producto = {
   vencimiento: string;
   diasRestantes: number;
   estado: 'Cerrado' | 'Abierto';
+  cantidad?: number | null;
 };
 
 export default function DashboardPage() {
-  const [token, setToken] = useState<string | null>(null);
+  const {
+    token,
+    checking,
+    logout,
+    sesion,
+    localActivoId,
+    setLocalActivoId,
+  } = useAuthSession();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loadingProductos, setLoadingProductos] = useState(true);
+  const [errorProductos, setErrorProductos] = useState('');
   const [mostrarAgregar, setMostrarAgregar] = useState(false);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-
-    if (!storedToken) {
-      window.location.href = '/login';
+    if (checking || !token || localActivoId == null) {
+      if (!checking && token && localActivoId == null) {
+        setLoadingProductos(false);
+        setProductos([]);
+        setErrorProductos('Creá un local para ver el inventario.');
+      }
       return;
     }
 
-    setToken(storedToken);
-
+    const storedToken = token;
     const fetchProductos = async () => {
+      setLoadingProductos(true);
       try {
-        const response = await fetch(
-          'http://localhost:8080/api/v1/insumos',
-          {
+        const response = await fetch(apiUrl('/api/v1/insumos'), {
             method: 'GET',
-            headers: {
-              Authorization: `Bearer ${storedToken}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+            headers: authHeaders(storedToken, localActivoId),
+        });
 
         if (!response.ok) {
-          console.error(
-            'No se pudieron obtener los productos de la base de datos'
-          );
-          return;
+          throw new Error('No se pudieron obtener los productos de la base de datos');
         }
 
-        const data = await response.json();
+        const data: Producto[] = await response.json();
 
-        setProductos(data);
-      } catch (error) {
-        console.error(
-          'Error de conexión con el backend:',
-          error
+        // Las filas que quedaron en cero (p. ej. tras preparar un plato) no se
+        // muestran en el resumen; siguen en la base para las recetas del menú.
+        setProductos(data.filter((producto) => (producto.cantidad ?? 0) > 0));
+        setErrorProductos('');
+      } catch (error: unknown) {
+        setErrorProductos(
+          error instanceof Error ? error.message : 'Error de conexión con el backend'
         );
       } finally {
         setLoadingProductos(false);
@@ -63,12 +70,9 @@ export default function DashboardPage() {
     };
 
     fetchProductos();
-  }, []);
+  }, [checking, token, localActivoId]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    window.location.href = '/login';
-  };
+  const handleLogout = logout;
 
 
   const totalProductos = productos.length;
@@ -88,7 +92,7 @@ export default function DashboardPage() {
 
 
 
-  if (!token) {
+  if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center">
         <div className="text-center">
@@ -105,89 +109,14 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-resto-manteca text-resto-ciruela">
 
-      {/* =========================
-          NAVBAR
-      ========================= */}
-      <header className="sticky top-0 z-50 border-b border-resto-ciruela/10 bg-resto-manteca/95 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
-
-          {/* LOGO */}
-          <Link href="/dashboard" className="shrink-0">
-            <h1 className="text-2xl font-black tracking-tight">
-              Resto<span className="text-resto-dorado">Sync.</span>
-            </h1>
-
-            <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">
-              Tu cocina sincronizada
-            </p>
-          </Link>
-
-          {/* NAVEGACIÓN */}
-          <nav className="hidden md:flex items-center gap-2">
-
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 rounded-xl bg-resto-ciruela text-resto-manteca text-sm font-semibold"
-            >
-              Inicio
-            </Link>
-
-            <Link
-              href="/inventario"
-              className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors"
-            >
-              Inventario
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => setMostrarAgregar(true)}
-              className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors"
-            >
-              Agregar compra
-            </button>
-
-            <Link
-              href="/analitica"
-              className="px-4 py-2 rounded-xl text-resto-ciruela text-sm font-semibold hover:bg-resto-oliva/10 transition-colors"
-            >
-              Analítica
-            </Link>
-
-          </nav>
-
-          {/* USUARIO */}
-          <div className="flex items-center gap-3">
-
-            <Link href="/opciones" className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-xl border border-resto-ciruela/10 hover:bg-resto-oliva/5 transition-colors cursor-pointer">
-
-              <div className="w-8 h-8 rounded-full bg-resto-oliva text-resto-manteca flex items-center justify-center font-bold">
-                M
-              </div>
-
-              <div>
-                <p className="text-xs font-bold">
-                  Mi cocina
-                </p>
-
-                <p className="text-[10px] text-resto-acero">
-                  Cuenta activa
-                </p>
-              </div>
-
-            </Link>
-
-            <button
-              onClick={handleLogout}
-              className="text-xs font-bold text-resto-ciruela px-3 py-2 rounded-lg hover:bg-resto-ciruela hover:text-resto-manteca transition-all"
-            >
-              Salir
-            </button>
-
-          </div>
-
-        </div>
-      </header>
+      <AppHeader
+        activePage="dashboard"
+        onLogout={handleLogout}
+        rol={sesion?.rol}
+        locales={sesion?.locales ?? []}
+        localActivoId={localActivoId}
+        onLocalChange={setLocalActivoId}
+      />
 
 
       {/* =========================
@@ -361,9 +290,14 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {!loadingProductos && errorProductos && (
+              <p className="py-8 text-center text-sm text-red-700" role="alert">
+                {errorProductos}
+              </p>
+            )}
 
             {/* SIN PRODUCTOS */}
-            {!loadingProductos && productos.length === 0 && (
+            {!loadingProductos && !errorProductos && productos.length === 0 && (
               <div className="py-12 text-center">
 
                 <div className="text-5xl mb-4">
@@ -392,7 +326,7 @@ export default function DashboardPage() {
 
 
             {/* PRODUCTOS */}
-            {!loadingProductos && productos.length > 0 && (
+            {!loadingProductos && !errorProductos && productos.length > 0 && (
               <div className="space-y-3">
 
                 {productosOrdenados.slice(0, 6).map((producto) => (

@@ -17,3 +17,7 @@ bin/
 .DS_Store
 
 *.log
+.idea/
+
+# Documento de trabajo local (no se versiona)
+PLAN_COMPLETAR.md

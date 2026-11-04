@@ -13,9 +13,19 @@ data class Usuario(
     val email: String = "",
 
     @Column(nullable = false)
-    val contrasena: String = "", 
+    val contrasena: String = "",
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("'ADMIN_RESTAURANTE'")
+    val rol: RolUsuario = RolUsuario.ADMIN_RESTAURANTE,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "restaurante_id", nullable = false)
-    val restaurante: Restaurante
+    val restaurante: Restaurante,
+
+    /** Solo para GERENTE_LOCAL. Admin opera con selector de local. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "local_id", nullable = true)
+    val local: Local? = null
 )
