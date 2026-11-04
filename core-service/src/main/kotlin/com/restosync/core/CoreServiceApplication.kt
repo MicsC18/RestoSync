@@ -5,21 +5,27 @@ import com.restosync.core.model.Insumo
 import com.restosync.core.model.Local
 import com.restosync.core.model.Lote
 import com.restosync.core.model.Mesa
+import com.restosync.core.model.MovimientoStock
 import com.restosync.core.model.Plato
+import com.restosync.core.model.Produccion
 import com.restosync.core.model.RecetaInsumo
 import com.restosync.core.model.Restaurante
 import com.restosync.core.model.RolUsuario
+import com.restosync.core.model.TipoMovimiento
 import com.restosync.core.model.Usuario
 import com.restosync.core.repository.InsumoRepository
 import com.restosync.core.repository.LocalRepository
 import com.restosync.core.repository.LoteRepository
 import com.restosync.core.repository.MesaRepository
+import com.restosync.core.repository.MovimientoStockRepository
 import com.restosync.core.repository.PlatoRepository
+import com.restosync.core.repository.ProduccionRepository
 import com.restosync.core.repository.RecetaInsumoRepository
 import com.restosync.core.repository.RestauranteRepository
 import com.restosync.core.repository.UsuarioRepository
 import com.restosync.core.service.InventarioService
 import jakarta.persistence.EntityManager
+import kotlin.math.roundToInt
 import org.springframework.boot.CommandLineRunner
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -27,6 +33,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 @SpringBootApplication
 class CoreServiceApplication {
@@ -41,6 +48,8 @@ class CoreServiceApplication {
         platoRepo: PlatoRepository,
         recetaRepo: RecetaInsumoRepository,
         mesaRepo: MesaRepository,
+        produccionRepo: ProduccionRepository,
+        movimientoRepo: MovimientoStockRepository,
         passwordEncoder: PasswordEncoder,
         entityManager: EntityManager,
         transactionTemplate: TransactionTemplate,
@@ -50,6 +59,7 @@ class CoreServiceApplication {
             transactionTemplate.executeWithoutResult {
                 migrarRolesNulos(entityManager)
                 migrarInsumosDeRestauranteALocal(entityManager)
+                sincronizarSecuencias(entityManager)
 
                 val restaurante = restauranteRepo.findAll().firstOrNull()
                     ?: restauranteRepo.save(Restaurante(nombre = "La Farola"))
@@ -113,6 +123,12 @@ class CoreServiceApplication {
                     sembrarDatosDemo(
                         restaurante, localPrincipal, usuarioRepo, localRepo, insumoRepo,
                         loteRepo, platoRepo, recetaRepo, mesaRepo, passwordEncoder, inventarioService
+                    )
+                    // Plan-IA §2.3: historial sintético de 90 días para que el monitor
+                    // predictivo tenga datos desde el primer arranque.
+                    sembrarHistorialDemo(
+                        localPrincipal, usuarioRepo, insumoRepo, platoRepo, recetaRepo, mesaRepo,
+                        produccionRepo, movimientoRepo
                     )
                 }
             }
@@ -268,6 +284,165 @@ class CoreServiceApplication {
                 )
             }
             println(">>> Mesas demo creadas: ${mesas.size} en ${localPrincipal.nombre}")
+        }
+    }
+
+    /**
+     * Seed histórico sintético (Plan-IA §2.3): 90 días hacia atrás de producciones y
+     * movimientos en el local principal de "La Farola", con patrón semanal determinístico
+     * (viernes y sábado ×1.6, domingo ×1.3, resto ×1.0) y variación pseudoaleatoria con
+     * semilla fija `Random(42)` para que sea reproducible entre arranques.
+     *
+     * IMPORTANTE: es solo auditoría histórica. **No modifica** `insumo.cantidad` ni los
+     * lotes actuales: el stock visible sigue siendo el real del demo.
+     *
+     * Idempotencia: si ya existe algún movimiento con `motivo = "Seed histórico demo"`
+     * en el local, no hace nada (los reinicios nunca duplican).
+     */
+    private fun sembrarHistorialDemo(
+        local: Local,
+        usuarioRepo: UsuarioRepository,
+        insumoRepo: InsumoRepository,
+        platoRepo: PlatoRepository,
+        recetaRepo: RecetaInsumoRepository,
+        mesaRepo: MesaRepository,
+        produccionRepo: ProduccionRepository,
+        movimientoRepo: MovimientoStockRepository
+    ) {
+        val motivoSeed = "Seed histórico demo"
+        if (movimientoRepo.existsByLocalIdAndMotivo(local.id, motivoSeed)) return
+
+        val admin = usuarioRepo.findByEmail("admin@lafarola.com").orElse(null) ?: return
+        val mesas = mesaRepo.findByLocalIdOrderByNombreAsc(local.id)
+
+        // Solo platos con receta completa; si falta alguno, se saltea (criterio del seed actual).
+        data class PlatoReceta(val plato: Plato, val lineas: List<RecetaInsumo>)
+        val platos = platoRepo.findByLocalIdOrderByNombreAsc(local.id)
+            .filter { it.activo }
+            .map { plato -> PlatoReceta(plato, recetaRepo.findByPlatoId(plato.id)) }
+            .filter { it.lineas.isNotEmpty() }
+        if (platos.isEmpty()) return
+
+        val random = java.util.Random(42)
+        val hoy = LocalDate.now()
+        val desde = hoy.minusDays(89)
+
+        // Consumo semanal estimado por nombre de insumo (base 3 × línea de receta × 7 días).
+        val consumoSemanalPorNombre: Map<String, Double> = platos
+            .flatMap { pr -> pr.lineas.map { it.insumo!!.nombre to 3.0 * it.cantidad } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, cantidades) -> cantidades.sum() * 7 }
+
+        var dia = desde
+        var indice = 0
+        while (!dia.isAfter(hoy)) {
+            // Factor del día: fines de semana más altos (patrón que la predicción debe ver).
+            val factor = when (dia.dayOfWeek) {
+                java.time.DayOfWeek.FRIDAY, java.time.DayOfWeek.SATURDAY -> 1.6
+                java.time.DayOfWeek.SUNDAY -> 1.3
+                else -> 1.0
+            }
+            val cantidadDia = maxOf(1.0, (3.0 * factor * (1.0 + random.nextDouble() * 0.10)).roundToInt().toDouble())
+
+            for (pr in platos) {
+                produccionRepo.save(
+                    Produccion(
+                        plato = pr.plato,
+                        platoNombre = pr.plato.nombre,
+                        cantidad = cantidadDia,
+                        mesa = mesas.getOrNull(indice % maxOf(mesas.size, 1)),
+                        mesaNombre = mesas.getOrNull(indice % maxOf(mesas.size, 1))?.nombre,
+                        fechaHora = dia.atTime(12, 0),
+                        local = local,
+                        usuario = admin
+                    )
+                )
+                for (linea in pr.lineas) {
+                    val insumo = linea.insumo ?: continue
+                    movimientoRepo.save(
+                        MovimientoStock(
+                            tipo = TipoMovimiento.PRODUCCION,
+                            cantidad = round2(cantidadDia * linea.cantidad),
+                            fechaHora = dia.atTime(12, 5),
+                            motivo = motivoSeed,
+                            insumo = insumo,
+                            usuario = admin,
+                            local = local
+                        )
+                    )
+                }
+            }
+
+            // Reposición semanal: cada 7 días, una ENTRADA por insumo con el consumo
+            // estimado de la semana. No crea lotes (no toca el stock actual).
+            if (indice % 7 == 0) {
+                for ((nombre, cantidadSemanal) in consumoSemanalPorNombre) {
+                    val insumo = insumoDelLocal(insumoRepo, local, nombre) ?: continue
+                    movimientoRepo.save(
+                        MovimientoStock(
+                            tipo = TipoMovimiento.ENTRADA,
+                            cantidad = round2(cantidadSemanal),
+                            fechaHora = dia.atTime(9, 0),
+                            motivo = motivoSeed,
+                            insumo = insumo,
+                            usuario = admin,
+                            local = local
+                        )
+                    )
+                }
+            }
+
+            dia = dia.plusDays(1)
+            indice++
+        }
+
+        // Merma de ejemplo hace 10 días (para que el monitor siempre muestre una).
+        val primerNombre = consumoSemanalPorNombre.keys.firstOrNull()
+        val insumoMerma = primerNombre?.let { insumoDelLocal(insumoRepo, local, it) }
+        if (insumoMerma != null) {
+            movimientoRepo.save(
+                MovimientoStock(
+                    tipo = TipoMovimiento.MERMA,
+                    cantidad = 0.5,
+                    fechaHora = hoy.minusDays(10).atTime(18, 0),
+                    motivo = motivoSeed,
+                    insumo = insumoMerma,
+                    usuario = admin,
+                    local = local
+                )
+            )
+        }
+
+        println(">>> Historial demo sembrado: 90 días en ${local.nombre} (no modifica stock actual)")
+    }
+
+    /** Insumo del local por nombre (case-insensitive); la primera fila homónima es suficiente. */
+    private fun insumoDelLocal(insumoRepo: InsumoRepository, local: Local, nombre: String): Insumo? =
+        insumoRepo.findByLocalIdAndNombreIgnoreCase(local.id, nombre).firstOrNull()
+
+    private fun round2(valor: Double): Double = Math.round(valor * 100.0) / 100.0
+
+    /**
+     * movimientos_stock y producciones nacieron de migraciones legacy: la secuencia puede
+     * quedar atrasada respecto del max(id) real y los inserts chocan contra la PK.
+     * setval alinea la secuencia; innecesario en BD nuevas (el try/catch cubre tablas inexistentes).
+     */
+    private fun sincronizarSecuencias(entityManager: EntityManager) {
+        try {
+            entityManager.createNativeQuery(
+                "SELECT setval(pg_get_serial_sequence('movimientos_stock', 'id'), " +
+                    "(SELECT COALESCE(MAX(id), 1) FROM movimientos_stock))"
+            ).resultList
+        } catch (_: Exception) {
+            // Tabla o secuencia inexistente (primer arranque).
+        }
+        try {
+            entityManager.createNativeQuery(
+                "SELECT setval(pg_get_serial_sequence('producciones', 'id'), " +
+                    "(SELECT COALESCE(MAX(id), 1) FROM producciones))"
+            ).resultList
+        } catch (_: Exception) {
+            // Tabla o secuencia inexistente (primer arranque).
         }
     }
 

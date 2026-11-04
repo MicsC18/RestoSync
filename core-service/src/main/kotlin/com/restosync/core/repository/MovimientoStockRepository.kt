@@ -3,6 +3,7 @@ package com.restosync.core.repository
 import com.restosync.core.model.MovimientoStock
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
+import java.time.LocalDateTime
 
 @Repository
 interface MovimientoStockRepository : JpaRepository<MovimientoStock, Long> {
@@ -10,4 +11,14 @@ interface MovimientoStockRepository : JpaRepository<MovimientoStock, Long> {
     fun findByLoteId(loteId: Long): List<MovimientoStock>
     fun deleteByInsumoId(insumoId: Long)
     fun countByUsuarioId(usuarioId: Long): Long
+
+    /** Ventana de movimientos del local para la serie histórica (§1.1 del Plan-IA). */
+    fun findByLocalIdAndFechaHoraBetweenOrderByFechaHoraAsc(
+        localId: Long,
+        desde: LocalDateTime,
+        hasta: LocalDateTime
+    ): List<MovimientoStock>
+
+    /** Guarda de idempotencia del seed histórico (§2.3). */
+    fun existsByLocalIdAndMotivo(localId: Long, motivo: String): Boolean
 }

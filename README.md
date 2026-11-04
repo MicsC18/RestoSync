@@ -137,5 +137,5 @@ envía `X-Local-Id` en las rutas con scope de local.
 
 ## Documentación del proyecto
 
-- `PLAN_COMPLETAR.md`: plan por fases, reglas de negocio y registro de correctivos.
+- `Plan-General.md`: plan por fases, reglas de negocio y registro de correctivos.
 - `proyecto.md`: enunciado original.
