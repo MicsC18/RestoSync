@@ -2,11 +2,17 @@ import io
 import json
 import os
 import traceback
+from datetime import date, datetime
+from typing import List, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types, errors
+from pydantic import BaseModel
+
+from prediccion import calcular_prediccion
+from recomendaciones import generar_insights, insights_por_reglas
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -40,6 +46,132 @@ def verificar_estado():
 def listar_modelos():
     modelos = [m.name for m in client.models.list()]
     return {"modelos_disponibles": modelos}
+
+
+# ---------- Modelos del monitor predictivo (espejo de Plan-IA §1.1 y §1.2) ----------
+
+class LoteHistorial(BaseModel):
+    cantidad: float
+    fechaVencimiento: date
+
+class InsumoHistorial(BaseModel):
+    id: int
+    nombre: str
+    categoria: Optional[str] = None
+    icono: Optional[str] = None
+    unidadMedida: str
+    stockActual: float
+    stockMinimo: Optional[float] = None
+    lotes: List[LoteHistorial] = []
+
+class SerieDiaria(BaseModel):
+    fecha: date
+    insumoId: int
+    consumo: float
+    entradas: float
+    mermas: float
+
+class ProduccionDiaria(BaseModel):
+    fecha: date
+    platoNombre: str
+    cantidad: float
+
+class Historial(BaseModel):
+    localId: int
+    dias: int
+    desde: date
+    hasta: date
+    insumos: List[InsumoHistorial] = []
+    series: List[SerieDiaria] = []
+    producciones: List[ProduccionDiaria] = []
+
+class PrediccionRequest(BaseModel):
+    historial: Historial
+    horizonteDias: int = 7
+
+class PuntoProyeccion(BaseModel):
+    fecha: date
+    cantidad: float
+
+class DemandaItem(BaseModel):
+    insumoId: int
+    nombre: str
+    icono: Optional[str] = None
+    unidadMedida: str
+    consumoDiarioBase: float
+    proyeccion: List[PuntoProyeccion]
+    totalProyectado: float
+    stockActual: float
+    coberturaDias: Optional[float] = None
+    fechaQuiebre: Optional[date] = None
+
+class MermaItem(BaseModel):
+    insumoId: int
+    nombre: str
+    icono: Optional[str] = None
+    unidadMedida: str
+    cantidadEnRiesgo: float
+    fechaVencimiento: date
+
+class CompraItem(BaseModel):
+    insumoId: int
+    nombre: str
+    icono: Optional[str] = None
+    unidadMedida: str
+    cantidadSugerida: float
+    prioridad: str
+    motivo: str
+
+class Recomendacion(BaseModel):
+    titulo: str
+    detalle: str
+
+class Insights(BaseModel):
+    fuente: str
+    recomendaciones: List[Recomendacion]
+
+class PrediccionResponse(BaseModel):
+    horizonteDias: int
+    generadoEn: datetime
+    datosInsuficientes: bool
+    demanda: List[DemandaItem]
+    mermas: List[MermaItem]
+    compras: List[CompraItem]
+    insights: Insights
+
+
+HORIZONTE_MINIMO = 1
+HORIZONTE_MAXIMO = 30
+
+
+@app.post("/api/v1/ia/prediccion-demanda", response_model=PrediccionResponse)
+def prediccion_demanda(request: PrediccionRequest):
+    """Monitor predictivo: pandas calcula los números; Gemini solo redacta insights (§0.2, §1.2)."""
+    horizonte = max(HORIZONTE_MINIMO, min(HORIZONTE_MAXIMO, request.horizonteDias))
+    historial_dict = request.historial.model_dump(mode="json")
+    resumen = calcular_prediccion(historial_dict, horizonte)
+    try:
+        insights = generar_insights(resumen, client)
+    except Exception as e:
+        # El endpoint nunca devuelve 5xx por una falla de Gemini: cae a reglas.
+        traceback.print_exc()
+        try:
+            recomendaciones = insights_por_reglas(resumen)
+        except Exception:
+            recomendaciones = [{
+                "titulo": "Análisis disponible sin IA",
+                "detalle": "Revisá la lista de compras sugeridas generada por las reglas de consumo.",
+            }]
+        insights = {"fuente": "reglas", "recomendaciones": recomendaciones}
+    return PrediccionResponse(
+        horizonteDias=horizonte,
+        generadoEn=datetime.now(),
+        datosInsuficientes=resumen["datosInsuficientes"],
+        demanda=resumen["demanda"],
+        mermas=resumen["mermas"],
+        compras=resumen["compras"],
+        insights=insights,
+    )
 
 @app.post("/api/v1/ia/escanear-ticket")
 async def escanear_ticket(file: UploadFile = File(...)):
