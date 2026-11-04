@@ -78,7 +78,7 @@ export default function DashboardPage() {
   const totalProductos = productos.length;
 
   const productosProximosAVencer = productos.filter(
-    (producto) => producto.diasRestantes <= 3
+    (producto) => (producto.cantidad ?? 0) > 0 && producto.diasRestantes <= 3
   ).length;
 
   const productosAbiertos = productos.filter(

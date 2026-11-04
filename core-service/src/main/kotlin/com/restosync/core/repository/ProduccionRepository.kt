@@ -11,4 +11,5 @@ interface ProduccionRepository : JpaRepository<Produccion, Long> {
     fun findByPlatoId(platoId: Long): List<Produccion>
     fun findByMesaId(mesaId: Long): List<Produccion>
     fun countByUsuarioId(usuarioId: Long): Long
+    fun countByLocalId(localId: Long): Long
 }

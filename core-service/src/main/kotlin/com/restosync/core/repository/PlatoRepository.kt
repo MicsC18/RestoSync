@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository
 @Repository
 interface PlatoRepository : JpaRepository<Plato, Long> {
     fun findByLocalIdOrderByNombreAsc(localId: Long): List<Plato>
+    fun countByLocalId(localId: Long): Long
 }

@@ -390,12 +390,18 @@ export default function InventarioPage() {
                       </td>
                       <td className="p-5">
                         <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                            prod.diasRestantes <= 3 ? 'bg-resto-dorado/20 text-resto-dorado' : 'bg-resto-oliva/10 text-resto-oliva'
-                          }`}>
-                            {prod.diasRestantes < 0 ? 'Vencido' : `En ${prod.diasRestantes} días`}
-                          </span>
-                          {prod.vencimiento && <span className="text-sm text-resto-acero hidden sm:inline-block">({prod.vencimiento})</span>}
+                          {prod.stock <= 0 ? (
+                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-resto-acero/15 text-resto-acero">
+                              Agotado
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                              prod.diasRestantes <= 3 ? 'bg-resto-dorado/20 text-resto-dorado' : 'bg-resto-oliva/10 text-resto-oliva'
+                            }`}>
+                              {prod.diasRestantes < 0 ? 'Vencido' : `En ${prod.diasRestantes} días`}
+                            </span>
+                          )}
+                          {prod.stock > 0 && prod.vencimiento && <span className="text-sm text-resto-acero hidden sm:inline-block">({prod.vencimiento})</span>}
                         </div>
                       </td>
                       <td className="p-5">
