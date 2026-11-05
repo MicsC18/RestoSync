@@ -14,4 +14,5 @@ interface InsumoRepository : JpaRepository<Insumo, Long> {
      * El merge busca entre ellas la que tenga un lote con la fecha exacta.
      */
     fun findByLocalIdAndNombreIgnoreCase(localId: Long, nombre: String): List<Insumo>
+    fun countByLocalId(localId: Long): Long
 }

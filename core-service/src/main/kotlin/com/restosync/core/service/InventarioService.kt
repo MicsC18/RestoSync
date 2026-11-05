@@ -530,13 +530,13 @@ class InventarioService(
         }
     }
 
-    /** `cantidad` = suma de lotes; `diasRestantes`/`vencimiento` salen del lote más próximo. */
+    /** `cantidad` = suma de lotes; `diasRestantes`/`vencimiento` salen del lote más próximo (0 si no hay lotes). */
     private fun recalcularAgregados(insumo: Insumo): Insumo {
         val lotes = loteRepository.findByInsumoIdOrderByFechaVencimientoAsc(insumo.id)
         val masProximo = lotes.firstOrNull()
         val dias = masProximo?.let {
             ChronoUnit.DAYS.between(LocalDate.now(), it.fechaVencimiento).toInt()
-        } ?: insumo.diasRestantes
+        } ?: 0
         return insumoRepository.save(
             insumo.copy(
                 cantidad = lotes.sumOf { it.cantidad },

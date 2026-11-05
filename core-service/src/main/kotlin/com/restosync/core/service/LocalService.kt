@@ -3,8 +3,13 @@ package com.restosync.core.service
 import com.restosync.core.dto.LocalDto
 import com.restosync.core.dto.LocalRequest
 import com.restosync.core.model.Local
+import com.restosync.core.repository.InsumoRepository
 import com.restosync.core.repository.LocalRepository
+import com.restosync.core.repository.MesaRepository
+import com.restosync.core.repository.PlatoRepository
+import com.restosync.core.repository.ProduccionRepository
 import com.restosync.core.repository.RestauranteRepository
+import com.restosync.core.repository.UsuarioRepository
 import com.restosync.core.security.UsuarioPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -15,7 +20,12 @@ import org.springframework.web.server.ResponseStatusException
 class LocalService(
     private val localRepository: LocalRepository,
     private val restauranteRepository: RestauranteRepository,
-    private val localContextService: LocalContextService
+    private val localContextService: LocalContextService,
+    private val insumoRepository: InsumoRepository,
+    private val mesaRepository: MesaRepository,
+    private val platoRepository: PlatoRepository,
+    private val usuarioRepository: UsuarioRepository,
+    private val produccionRepository: ProduccionRepository
 ) {
 
     @Transactional(readOnly = true)
@@ -73,6 +83,29 @@ class LocalService(
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "No podés eliminar el único local del restaurante"
+            )
+        }
+
+        // Validación de integridad: si el local tiene datos asociados, se rechaza la eliminación
+        // con un mensaje amigable para evitar fallos de clave foránea en la base de datos.
+        val insumos = insumoRepository.countByLocalId(id)
+        val mesas = mesaRepository.countByLocalId(id)
+        val platos = platoRepository.countByLocalId(id)
+        val gerentes = usuarioRepository.countByLocalId(id)
+        val producciones = produccionRepository.countByLocalId(id)
+
+        val dependencias = mutableListOf<String>()
+        if (insumos > 0) dependencias.add("$insumos insumo(s)")
+        if (mesas > 0) dependencias.add("$mesas mesa(s)")
+        if (platos > 0) dependencias.add("$platos plato(s) en el menú")
+        if (gerentes > 0) dependencias.add("$gerentes gerente(s) asignado(s)")
+        if (producciones > 0) dependencias.add("$producciones preparación(es) registradas")
+
+        if (dependencias.isNotEmpty()) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "No podés eliminar el local '${existente.nombre}': tiene datos asociados (${dependencias.joinToString(", ")}). " +
+                    "Reasigná o eliminá estos datos primero para poder borrar la sucursal."
             )
         }
 

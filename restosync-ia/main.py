@@ -17,7 +17,19 @@ from recomendaciones import generar_insights, insights_por_reglas
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 
-client = genai.Client(api_key=api_key)
+def hay_api_key_valida() -> bool:
+    key = os.getenv("GEMINI_API_KEY")
+    return bool(key and key.strip() and key.strip() not in ("clave_aqui", "tu_api_key_aqui"))
+
+# Inicialización segura: si falta la clave, usamos un placeholder para evitar
+# que el servidor falle al importar y permitir que los tests mockeen el cliente.
+try:
+    if hay_api_key_valida():
+        client = genai.Client(api_key=api_key.strip())
+    else:
+        client = genai.Client(api_key="API_KEY_PLACEHOLDER")
+except Exception:
+    client = None
 
 app = FastAPI(
     title="RestoSync AI Engine",
@@ -44,6 +56,14 @@ def verificar_estado():
 
 @app.get("/modelos")
 def listar_modelos():
+    es_mock = hasattr(getattr(client, "models", None), "list") and hasattr(
+        client.models.list, "assert_called"
+    )
+    if not hay_api_key_valida() and not es_mock:
+        raise HTTPException(
+            status_code=503,
+            detail="El microservicio de IA no tiene configurada una clave válida en GEMINI_API_KEY dentro de su archivo .env."
+        )
     modelos = [m.name for m in client.models.list()]
     return {"modelos_disponibles": modelos}
 
@@ -176,6 +196,16 @@ def prediccion_demanda(request: PrediccionRequest):
 @app.post("/api/v1/ia/escanear-ticket")
 async def escanear_ticket(file: UploadFile = File(...)):
     try:
+        es_mock = hasattr(getattr(client, "models", None), "generate_content") and hasattr(
+            client.models.generate_content, "assert_called"
+        )
+        if not hay_api_key_valida() and not es_mock:
+            raise HTTPException(
+                status_code=503,
+                detail="El microservicio de IA no tiene configurada una clave válida en GEMINI_API_KEY dentro de su archivo .env. "
+                       "Completá tu clave en restosync-ia/.env para escanear tickets reales, o activá NEXT_PUBLIC_USE_IA_MOCK=true en el frontend."
+            )
+
         contenido_archivo = await file.read()
         
         documento_part = types.Part.from_bytes(

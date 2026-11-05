@@ -12,5 +12,5 @@ interface UsuarioRepository : JpaRepository <Usuario, Long> {
     fun findByEmail(email: String): Optional <Usuario>
 
     fun findByRestauranteIdAndRol(restauranteId: Long, rol: RolUsuario): List<Usuario>
-
+    fun countByLocalId(localId: Long): Long
 }
