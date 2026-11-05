@@ -88,8 +88,15 @@ class CoreServiceApplication {
 
                 // Asigna local a insumos huérfanos y reintenta migración de columna vieja.
                 migrarInsumosDeRestauranteALocal(entityManager)
+                // Filas con local_id de otro restaurante (insumos que "aparecen" en un local
+                // al que no pertenecen) → devolverlas al local correcto de su restaurante.
+                repararInsumosFueraDeSuRestaurante(entityManager)
                 insumoRepo.findByLocalIsNull().forEach { insumo ->
-                    insumo.local = localPrincipal
+                    // Un huérfano va al primer local de SU restaurante; localPrincipal solo
+                    // como último recurso (antes se tiraban todos ahí y cruzaban marcas).
+                    insumo.local = insumo.restaurante?.id
+                        ?.let { localRepo.findByRestauranteId(it).firstOrNull() }
+                        ?: localPrincipal
                     insumoRepo.save(insumo)
                 }
                 // Quita el NOT NULL / columna obsoleta recién cuando ya hay locales.
@@ -423,26 +430,26 @@ class CoreServiceApplication {
     private fun round2(valor: Double): Double = Math.round(valor * 100.0) / 100.0
 
     /**
-     * movimientos_stock y producciones nacieron de migraciones legacy: la secuencia puede
-     * quedar atrasada respecto del max(id) real y los inserts chocan contra la PK.
-     * setval alinea la secuencia; innecesario en BD nuevas (el try/catch cubre tablas inexistentes).
+     * movimientos_stock y producciones nacieron de migraciones legacy y varios demos
+     * insertaron filas con ids explícitos altos (801, 306, 703...): las secuencias quedan
+     * atrasadas contra el max(id) real y los próximos inserts chocan contra la PK
+     * ("conflicto de ids"). setval alinea todas; innecesario en BD nuevas
+     * (el try/catch por tabla cubre tablas o secuencias inexistentes).
      */
     private fun sincronizarSecuencias(entityManager: EntityManager) {
-        try {
-            entityManager.createNativeQuery(
-                "SELECT setval(pg_get_serial_sequence('movimientos_stock', 'id'), " +
-                    "(SELECT COALESCE(MAX(id), 1) FROM movimientos_stock))"
-            ).resultList
-        } catch (_: Exception) {
-            // Tabla o secuencia inexistente (primer arranque).
-        }
-        try {
-            entityManager.createNativeQuery(
-                "SELECT setval(pg_get_serial_sequence('producciones', 'id'), " +
-                    "(SELECT COALESCE(MAX(id), 1) FROM producciones))"
-            ).resultList
-        } catch (_: Exception) {
-            // Tabla o secuencia inexistente (primer arranque).
+        val tablas = listOf(
+            "restaurantes", "locales", "insumos", "lotes", "mesas", "platos",
+            "receta_insumos", "usuarios", "movimientos_stock", "producciones"
+        )
+        for (tabla in tablas) {
+            try {
+                entityManager.createNativeQuery(
+                    "SELECT setval(pg_get_serial_sequence('$tabla', 'id'), " +
+                        "(SELECT COALESCE(MAX(id), 1) FROM $tabla))"
+                ).resultList
+            } catch (_: Exception) {
+                // Tabla o secuencia inexistente (primer arranque).
+            }
         }
     }
 
@@ -477,6 +484,53 @@ class CoreServiceApplication {
             ).executeUpdate()
         } catch (_: Exception) {
             // restaurante_id puede no existir si la DB ya está migrada.
+        }
+    }
+
+    /**
+     * Repara insumos "mudados" al local de otro restaurante: filas creadas por la ruta
+     * legacy (o tiradas al local principal cuando estaban huérfanas) quedan con el
+     * restaurante_id de su marca pero un local_id ajeno, y aparecen en el inventario
+     * equivocado. Se devuelven al primer local de su restaurante y los movimientos de
+     * auditoría siguen a su insumo. Idempotente: solo toca filas cruzadas.
+     */
+    private fun repararInsumosFueraDeSuRestaurante(entityManager: EntityManager) {
+        try {
+            val reparados = entityManager.createNativeQuery(
+                """
+                UPDATE insumos i
+                SET local_id = (
+                    SELECT MIN(l2.id) FROM locales l2
+                    WHERE l2.restaurante_id = i.restaurante_id
+                )
+                FROM locales l
+                WHERE i.local_id = l.id
+                  AND i.restaurante_id IS NOT NULL
+                  AND l.restaurante_id <> i.restaurante_id
+                  AND EXISTS (
+                      SELECT 1 FROM locales l2 WHERE l2.restaurante_id = i.restaurante_id
+                  )
+                """.trimIndent()
+            ).executeUpdate()
+            if (reparados > 0) {
+                println(">>> Insumos devueltos a su restaurante: $reparados fila(s)")
+            }
+        } catch (_: Exception) {
+            // Columna o tabla inexistente (DB ya migrada del todo).
+        }
+        try {
+            entityManager.createNativeQuery(
+                """
+                UPDATE movimientos_stock m
+                SET local_id = i.local_id
+                FROM insumos i
+                WHERE m.insumo_id = i.id
+                  AND i.local_id IS NOT NULL
+                  AND m.local_id IS DISTINCT FROM i.local_id
+                """.trimIndent()
+            ).executeUpdate()
+        } catch (_: Exception) {
+            // Columna insumo_id/local_id inexistente en el esquema legacy.
         }
     }
 
