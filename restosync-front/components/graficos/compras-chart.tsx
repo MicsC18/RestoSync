@@ -16,7 +16,7 @@ import type { CompraItem, PrioridadCompra } from '@/lib/prediccion';
 const COLOR_PRIORIDAD: Record<PrioridadCompra, string> = {
   ALTA: '#3A1124', // resto-ciruela
   MEDIA: '#E0A96D', // resto-dorado
-  BAJA: '#7393B3', // resto-acero
+  BAJA: '#54718E', // resto-acero
 };
 
 type TooltipItem = {
@@ -47,7 +47,7 @@ export default function ComprasChart({ compras }: { compras: CompraItem[] }) {
     <ResponsiveContainer width="100%" height={Math.max(180, datos.length * 44)}>
       <BarChart data={datos} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
         <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#3A11241A" />
-        <XAxis type="number" tick={{ fontSize: 12, fill: '#7393B3' }} allowDecimals={false} />
+        <XAxis type="number" tick={{ fontSize: 12, fill: '#54718E' }} allowDecimals={false} />
         <YAxis
           type="category"
           dataKey="nombre"
@@ -74,7 +74,7 @@ function ComprasTooltip({ active, payload }: { active?: boolean; payload?: Toolt
   return (
     <div className="bg-white border border-resto-ciruela/15 rounded-xl shadow-lg px-4 py-3 text-xs max-w-72">
       <p className="font-black mb-1">
-        {compra.icono ?? '📦'} {compra.nombre}: <span className="text-resto-dorado">{compra.cantidadSugerida}</span>{' '}
+        {compra.icono ?? '📦'} {compra.nombre}: <span className="text-resto-canela">{compra.cantidadSugerida}</span>{' '}
         {compra.unidadMedida}
       </p>
       <p className="text-resto-acero font-bold mb-1">Prioridad {compra.prioridad.toLowerCase()}</p>

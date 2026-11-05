@@ -15,7 +15,7 @@ export default function LandingPage() {
           {/* Logo */}
           <Link href="/" className="shrink-0">
             <h1 className="text-2xl font-black tracking-tight">
-              Resto<span className="text-resto-dorado">Sync.</span>
+              Resto<span className="text-resto-canela">Sync.</span>
             </h1>
 
             <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">
@@ -91,7 +91,7 @@ export default function LandingPage() {
               <span className="block text-resto-oliva">
                 más potencial.
               </span>
-              <span className="block text-resto-dorado">
+              <span className="block text-resto-canela">
                 Aprovechalo.
               </span>
             </h2>
@@ -185,7 +185,7 @@ export default function LandingPage() {
 
                     <h4 className="text-2xl font-black mt-3">
                       No dejes que
-                      <span className="block text-resto-dorado">
+                      <span className="block text-resto-canela">
                         nada se pierda.
                       </span>
                     </h4>
@@ -244,7 +244,7 @@ export default function LandingPage() {
                         </p>
                       </div>
 
-                      <span className="text-xs font-bold text-resto-dorado">
+                      <span className="text-xs font-bold text-resto-canela">
                         Revisar
                       </span>
 
@@ -397,7 +397,7 @@ export default function LandingPage() {
 
             <h2 className="text-4xl md:text-5xl font-black leading-tight mt-4">
               Compramos,
-              <span className="block text-resto-dorado">
+              <span className="block text-resto-canela">
                 guardamos,
               </span>
               y a veces nos olvidamos.
@@ -503,7 +503,7 @@ export default function LandingPage() {
 
             <h2 className="text-4xl md:text-5xl font-black mt-4 leading-tight">
               Todo lo que necesitás.
-              <span className="block text-resto-dorado">
+              <span className="block text-resto-canela">
                 Donde lo necesitás.
               </span>
             </h2>
@@ -618,7 +618,7 @@ export default function LandingPage() {
 
             <h2 className="text-4xl md:text-5xl font-black mt-4 leading-tight">
               De la compra
-              <span className="block text-resto-dorado">
+              <span className="block text-resto-canela">
                 a una cocina organizada.
               </span>
             </h2>
@@ -781,7 +781,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8 flex flex-col md:flex-row items-center justify-between gap-5">
 
           <Link href="/" className="text-xl font-black tracking-tight">
-            Resto<span className="text-resto-dorado">Sync.</span>
+            Resto<span className="text-resto-canela">Sync.</span>
           </Link>
 
           <p className="text-sm text-resto-acero text-center">
@@ -799,7 +799,7 @@ export default function LandingPage() {
 
             <Link
               href="/register"
-              className="text-resto-oliva hover:text-resto-dorado transition-colors"
+              className="text-resto-oliva hover:text-resto-canela transition-colors"
             >
               Registrarme
             </Link>

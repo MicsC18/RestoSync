@@ -94,9 +94,9 @@ export default function DemandaChart({ demanda }: { demanda: DemandaItem[] }) {
             <XAxis
               dataKey="fecha"
               tickFormatter={fechaDDMM}
-              tick={{ fontSize: 12, fill: '#7393B3' }}
+              tick={{ fontSize: 12, fill: '#54718E' }}
             />
-            <YAxis tick={{ fontSize: 12, fill: '#7393B3' }} />
+            <YAxis tick={{ fontSize: 12, fill: '#54718E' }} />
             <Tooltip
               content={
                 <DemandaTooltip

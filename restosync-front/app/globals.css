@@ -5,5 +5,26 @@
   --color-resto-ciruela: #3A1124;
   --color-resto-oliva: #4A5D23;
   --color-resto-dorado: #E0A96D;
-  --color-resto-acero: #7393B3;
+  /* Acero oscurecido: como texto secundario sobre manteca/blanco cumple WCAG AA (≈4.7:1). */
+  --color-resto-acero: #54718E;
+  /* Ámbar profundo: reemplaza al dorado SOLO como texto sobre fondo claro (dorado #E0A96D da ~2:1). */
+  --color-resto-canela: #A05A1C;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Respeta el ajuste de movimiento reducido del sistema (transiciones y spinners). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

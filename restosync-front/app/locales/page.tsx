@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import AppHeader from '@/components/app-header';
+import ConfirmDialog from '@/components/confirm-dialog';
 import { apiUrl, authHeaders } from '@/lib/api';
 import { useAuthSession, type LocalInfo } from '@/lib/use-auth-session';
 
@@ -35,6 +36,9 @@ export default function LocalesPage() {
   const [guardando, setGuardando] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [form, setForm] = useState<FormularioLocal>(formVacio);
+
+  // Confirmación de eliminación (reemplaza al confirm() nativo).
+  const [localAEliminar, setLocalAEliminar] = useState<LocalInfo | null>(null);
 
   const cargarLocales = async (storedToken: string) => {
     setLoading(true);
@@ -120,7 +124,6 @@ export default function LocalesPage() {
 
   const eliminar = async (id: number) => {
     if (!token) return;
-    if (!confirm('¿Eliminar este local? Esta acción no se puede deshacer.')) return;
 
     setError('');
     try {
@@ -147,7 +150,7 @@ export default function LocalesPage() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -275,7 +278,7 @@ export default function LocalesPage() {
 
           <div className="rounded-[2rem] border border-resto-ciruela/10 bg-white overflow-hidden">
             {loading ? (
-              <div className="py-16 text-center text-resto-acero">Cargando locales...</div>
+              <div className="py-16 text-center text-resto-acero" role="status">Cargando locales...</div>
             ) : locales.length === 0 ? (
               <div className="py-16 text-center">
                 <p className="font-bold">Todavía no hay locales</p>
@@ -320,7 +323,7 @@ export default function LocalesPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void eliminar(local.id)}
+                        onClick={() => setLocalAEliminar(local)}
                         className="rounded-lg border border-resto-dorado/40 px-3 py-2 text-xs font-bold text-resto-ciruela hover:bg-resto-dorado/10"
                       >
                         Eliminar
@@ -333,6 +336,19 @@ export default function LocalesPage() {
           </div>
         </div>
       </section>
+
+      {localAEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar local"
+          mensaje={`¿Eliminar "${localAEliminar.nombre}"? Esta acción no se puede deshacer.`}
+          onCancel={() => setLocalAEliminar(null)}
+          onConfirm={() => {
+            const id = localAEliminar.id;
+            setLocalAEliminar(null);
+            void eliminar(id);
+          }}
+        />
+      )}
     </main>
   );
 }

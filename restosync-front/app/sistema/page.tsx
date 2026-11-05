@@ -8,7 +8,7 @@ import { usarMockIa } from '@/lib/ia-mock';
 
 type EstadoIA = 'verificando' | 'conectado' | 'desconectado';
 
-export default function OpcionesPage() {
+export default function SistemaPage() {
   const {
     token,
     checking,
@@ -48,7 +48,7 @@ export default function OpcionesPage() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -61,7 +61,7 @@ export default function OpcionesPage() {
   return (
     <main className="min-h-screen bg-resto-manteca text-resto-ciruela">
       <AppHeader
-        activePage="opciones"
+        activePage="sistema"
         onLogout={logout}
         rol={sesion?.rol}
         locales={sesion?.locales ?? []}
@@ -71,7 +71,7 @@ export default function OpcionesPage() {
 
       <section className="max-w-4xl mx-auto px-6 lg:px-10 py-12">
         <div className="mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-dorado text-xs font-bold uppercase tracking-wider mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-canela text-xs font-bold uppercase tracking-wider mb-4">
             <span className="w-2 h-2 rounded-full bg-resto-dorado" />
             Configuración del Sistema
           </div>
@@ -101,7 +101,7 @@ export default function OpcionesPage() {
 
               <div>
                 {esMock ? (
-                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-resto-dorado/20 text-resto-dorado text-xs font-bold">
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-resto-dorado/20 text-resto-canela text-xs font-bold">
                     <span className="w-2 h-2 rounded-full bg-resto-dorado" />
                     Modo Mock (Desarrollo)
                   </span>

@@ -48,6 +48,7 @@ export default function RegistroClient() {
 
   const [productos, setProductos] = useState<ProductoDetectado[]>([]);
   const [mensajeExito, setMensajeExito] = useState('');
+  const [errorIa, setErrorIa] = useState('');
 
   const [grabando, setGrabando] = useState(false);
   const [transcripcion, setTranscripcion] = useState('');
@@ -76,6 +77,7 @@ export default function RegistroClient() {
 
     setLoading(true);
     setMensajeExito('');
+    setErrorIa('');
 
     try {
       if (usarMockIa()) {
@@ -115,7 +117,7 @@ export default function RegistroClient() {
       );
 
       // fetch lanza TypeError cuando el microservicio no responde (caído o sin CORS).
-      alert(
+      setErrorIa(
         error instanceof TypeError
           ? 'No se pudo conectar con el microservicio de IA (puerto 8000). Verificá que restosync-ia esté corriendo.'
           : error instanceof Error
@@ -132,6 +134,7 @@ export default function RegistroClient() {
   // =========================
   const handleDictado = () => {
     setMensajeExito('');
+    setErrorIa('');
 
     const SpeechRecognition = (
       window as Window & {
@@ -140,9 +143,7 @@ export default function RegistroClient() {
     ).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert(
-        'Tu navegador no soporta reconocimiento de voz.'
-      );
+      setErrorIa('Tu navegador no soporta reconocimiento de voz.');
       return;
     }
 
@@ -162,7 +163,7 @@ export default function RegistroClient() {
 
     recognition.onerror = () => {
       setGrabando(false);
-      alert('No pudimos interpretar el audio.');
+      setErrorIa('No pudimos interpretar el audio.');
     };
 
     recognition.onend = () => {
@@ -229,6 +230,7 @@ export default function RegistroClient() {
 
     setGuardando(true);
     setMensajeExito('');
+    setErrorIa('');
 
     try {
       for (const prod of productos) {
@@ -276,7 +278,7 @@ export default function RegistroClient() {
         error
       );
 
-      alert(
+      setErrorIa(
         error instanceof Error
           ? error.message
           : 'Hubo un error al guardar los insumos en el backend.'
@@ -289,7 +291,7 @@ export default function RegistroClient() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -305,7 +307,7 @@ export default function RegistroClient() {
 
           <Link href="/dashboard">
             <h1 className="text-2xl font-black tracking-tight">
-              Resto<span className="text-resto-dorado">Sync.</span>
+              Resto<span className="text-resto-canela">Sync.</span>
             </h1>
 
             <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">
@@ -351,6 +353,17 @@ export default function RegistroClient() {
           </p>
 
         </div>
+
+
+        {/* ERROR DE IA (inline, reemplaza al alert nativo) */}
+        {errorIa && (
+          <div
+            role="alert"
+            className="mb-8 rounded-xl border border-resto-canela/30 bg-resto-dorado/10 px-4 py-3 text-sm text-resto-ciruela"
+          >
+            {errorIa}
+          </div>
+        )}
 
 
         {/* =========================
@@ -399,7 +412,7 @@ export default function RegistroClient() {
                     setMensajeExito('');
                   }
                 }}
-                className={`group block cursor-pointer rounded-2xl border-2 border-dashed transition-all p-10 text-center ${
+                className={`group block cursor-pointer rounded-2xl border-2 border-dashed transition-all p-10 text-center focus-within:outline-none focus-within:ring-2 focus-within:ring-resto-oliva ${
                   isDragging
                     ? 'border-resto-oliva bg-resto-oliva/15 scale-[1.01]'
                     : 'border-resto-oliva/30 bg-resto-manteca/50 hover:bg-resto-oliva/5 hover:border-resto-oliva'
@@ -412,7 +425,7 @@ export default function RegistroClient() {
                   accept="image/*,application/pdf"
                   capture="environment"
                   onChange={handleFileChange}
-                  className="hidden"
+                  className="sr-only"
                 />
 
                 <div className="text-5xl mb-5 group-hover:scale-110 transition-transform">
@@ -525,7 +538,7 @@ export default function RegistroClient() {
             MENSAJE ÉXITO
         ========================= */}
         {mensajeExito && (
-          <div className="mt-8 rounded-2xl bg-resto-oliva/10 border border-resto-oliva/20 p-5">
+          <div className="mt-8 rounded-2xl bg-resto-oliva/10 border border-resto-oliva/20 p-5" role="status">
 
             <div className="flex items-center gap-3">
 
@@ -689,8 +702,9 @@ export default function RegistroClient() {
                       onClick={() =>
                         eliminarProducto(index)
                       }
-                      className="w-10 h-10 shrink-0 rounded-xl text-resto-ciruela/40 hover:bg-resto-dorado/10 hover:text-resto-dorado transition-colors"
+                      className="w-10 h-10 shrink-0 rounded-xl text-resto-ciruela/40 hover:bg-resto-dorado/10 hover:text-resto-canela transition-colors"
                       title="Eliminar producto"
+                      aria-label={`Quitar ${prod.nombre}`}
                     >
                       ×
                     </button>
@@ -749,7 +763,7 @@ export default function RegistroClient() {
 
           <Link
             href="/dashboard"
-            className="text-xs font-semibold text-resto-oliva hover:text-resto-dorado transition-colors"
+            className="text-xs font-semibold text-resto-oliva hover:text-resto-canela transition-colors"
           >
             Volver al inicio
           </Link>

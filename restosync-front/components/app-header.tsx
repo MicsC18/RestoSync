@@ -11,7 +11,8 @@ type ActivePage =
   | 'menu'
   | 'mesas'
   | 'analitica'
-  | 'opciones'
+  | 'prediccion'
+  | 'sistema'
   | 'locales'
   | 'cuentas';
 
@@ -37,7 +38,7 @@ export default function AppHeader({
       <div className="relative max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between gap-3">
         <Link href="/dashboard" className="shrink-0">
           <h1 className="text-2xl font-black tracking-tight">
-            Resto<span className="text-resto-dorado">Sync.</span>
+            Resto<span className="text-resto-canela">Sync.</span>
           </h1>
           <p className="text-[10px] uppercase tracking-[0.2em] text-resto-acero">
             Tu cocina sincronizada

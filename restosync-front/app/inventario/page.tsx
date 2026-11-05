@@ -6,6 +6,8 @@ import { apiUrl, authHeaders } from '@/lib/api';
 import { CATEGORIAS_BASE, iconoParaInsumo } from '@/lib/insumos';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
+import Modal from '@/components/modal';
+import ConfirmDialog from '@/components/confirm-dialog';
 
 type Producto = {
   id: number;
@@ -73,6 +75,9 @@ export default function InventarioPage() {
   const [form, setForm] = useState<FormularioInsumo>(formVacio);
   const [guardando, setGuardando] = useState(false);
   const [errorModal, setErrorModal] = useState('');
+
+  // Confirmación de eliminación (reemplaza al confirm() nativo).
+  const [productoAEliminar, setProductoAEliminar] = useState<Producto | null>(null);
 
   useEffect(() => {
     if (checking || !token) return;
@@ -231,7 +236,6 @@ export default function InventarioPage() {
 
   const eliminar = async (producto: Producto) => {
     if (!token) return;
-    if (!confirm(`¿Eliminar "${producto.nombre}" del inventario? Se borran también sus lotes.`)) return;
 
     setError('');
     try {
@@ -252,7 +256,7 @@ export default function InventarioPage() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -274,7 +278,7 @@ export default function InventarioPage() {
         {/* ENCABEZADO */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-dorado text-xs font-bold uppercase tracking-wider mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-canela text-xs font-bold uppercase tracking-wider mb-4">
               <span className="w-2 h-2 rounded-full bg-resto-dorado" />
               Gestión total
             </div>
@@ -330,8 +334,8 @@ export default function InventarioPage() {
               title={mostrarAgotados ? 'Ocultar los insumos sin stock' : 'Mostrar los insumos que quedaron en cero'}
               className={`ml-auto px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${
                 mostrarAgotados
-                  ? 'bg-resto-dorado/20 border-resto-dorado/40 text-resto-dorado'
-                  : 'bg-white border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-dorado'
+                  ? 'bg-resto-dorado/20 border-resto-dorado/40 text-resto-canela'
+                  : 'bg-white border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-canela'
               }`}
             >
               {mostrarAgotados ? 'Ocultar agotados' : `Agotados (${agotados.length})`}
@@ -342,7 +346,7 @@ export default function InventarioPage() {
         {/* TABLA DE INVENTARIO */}
         <div className="bg-white rounded-[2rem] border border-resto-ciruela/10 overflow-hidden shadow-sm">
           {loading ? (
-            <div className="py-20 text-center">
+            <div className="py-20 text-center" role="status">
               <div className="w-10 h-10 mx-auto mb-4 rounded-full border-4 border-resto-oliva/20 border-t-resto-oliva animate-spin" />
               <p className="text-resto-acero font-semibold">Cargando tu almacén...</p>
             </div>
@@ -396,7 +400,7 @@ export default function InventarioPage() {
                             </span>
                           ) : (
                             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                              prod.diasRestantes <= 3 ? 'bg-resto-dorado/20 text-resto-dorado' : 'bg-resto-oliva/10 text-resto-oliva'
+                              prod.diasRestantes <= 3 ? 'bg-resto-dorado/20 text-resto-canela' : 'bg-resto-oliva/10 text-resto-oliva'
                             }`}>
                               {prod.diasRestantes < 0 ? 'Vencido' : `En ${prod.diasRestantes} días`}
                             </span>
@@ -426,10 +430,10 @@ export default function InventarioPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void eliminar(prod)}
+                          onClick={() => setProductoAEliminar(prod)}
                           title={`Eliminar ${prod.nombre}`}
                           aria-label={`Eliminar ${prod.nombre}`}
-                          className="ml-2 w-9 h-9 rounded-lg border border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-dorado transition-colors"
+                          className="ml-2 w-9 h-9 rounded-lg border border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-canela transition-colors"
                         >
                           🗑
                         </button>
@@ -453,11 +457,9 @@ export default function InventarioPage() {
 
       {/* MODAL ALTA / EDICIÓN */}
       {modal && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-resto-ciruela/40 backdrop-blur-sm p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={modal === 'editar' ? 'Corregir insumo' : 'Carga manual de insumo'}
+        <Modal
+          ariaLabel={modal === 'editar' ? 'Corregir insumo' : 'Carga manual de insumo'}
+          onClose={cerrarModal}
         >
           <form
             onSubmit={guardar}
@@ -577,7 +579,20 @@ export default function InventarioPage() {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
+      )}
+
+      {productoAEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar insumo"
+          mensaje={`¿Eliminar "${productoAEliminar.nombre}" del inventario? Se borran también sus lotes.`}
+          onCancel={() => setProductoAEliminar(null)}
+          onConfirm={() => {
+            const producto = productoAEliminar;
+            setProductoAEliminar(null);
+            void eliminar(producto);
+          }}
+        />
       )}
 
       {/* FOOTER */}

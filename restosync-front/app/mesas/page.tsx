@@ -5,6 +5,8 @@ import { FormEvent, PointerEvent as ReactPointerEvent, useCallback, useEffect, u
 import { apiUrl, authHeaders } from '@/lib/api';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
+import Modal from '@/components/modal';
+import ConfirmDialog from '@/components/confirm-dialog';
 
 type EstadoMesa = 'LIBRE' | 'OCUPADA' | 'RESERVADA';
 
@@ -39,7 +41,7 @@ const ESTILOS_ESTADO: Record<EstadoMesa, { tarjeta: string; punto: string; etiqu
   OCUPADA: {
     tarjeta: 'bg-resto-dorado/10 border-resto-dorado/50 hover:border-resto-dorado',
     punto: 'bg-resto-dorado',
-    etiqueta: 'bg-resto-dorado/20 text-resto-dorado',
+    etiqueta: 'bg-resto-dorado/20 text-resto-canela',
   },
   RESERVADA: {
     tarjeta: 'bg-resto-ciruela/5 border-resto-ciruela/40 hover:border-resto-ciruela',
@@ -80,6 +82,9 @@ export default function MesasPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorModal, setErrorModal] = useState('');
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
+
+  // Confirmación de eliminación (reemplaza al confirm() nativo).
+  const [mesaAEliminar, setMesaAEliminar] = useState<Mesa | null>(null);
 
   // Arrastre sobre el mapa (posiciones en porcentaje del canvas).
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -306,7 +311,6 @@ export default function MesasPage() {
 
   const eliminarMesa = async (mesa: Mesa) => {
     if (!token) return;
-    if (!window.confirm(`¿Eliminar "${mesa.nombre}" del mapa? El historial de platos preparados se conserva.`)) return;
     setError('');
     try {
       const response = await fetch(apiUrl(`/api/v1/mesas/${mesa.id}`), {
@@ -335,7 +339,7 @@ export default function MesasPage() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -357,7 +361,7 @@ export default function MesasPage() {
         {/* ENCABEZADO */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-dorado text-xs font-bold uppercase tracking-wider mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-canela text-xs font-bold uppercase tracking-wider mb-4">
               <span className="w-2 h-2 rounded-full bg-resto-dorado" />
               Salón
             </div>
@@ -367,7 +371,7 @@ export default function MesasPage() {
             <p className="mt-4 text-resto-acero max-w-xl leading-relaxed">
               Arrastrá las mesas para ordenar el salón, cambiá su estado y mirá qué platos se
               prepararon para cada una. Los platos se preparan desde el{' '}
-              <Link href="/menu" className="font-bold text-resto-oliva hover:text-resto-dorado">Menú</Link>.
+              <Link href="/menu" className="font-bold text-resto-oliva hover:text-resto-canela">Menú</Link>.
             </p>
           </div>
           <div className="shrink-0">
@@ -406,7 +410,7 @@ export default function MesasPage() {
           {/* MAPA */}
           <div>
             {loading ? (
-              <div className="py-20 text-center bg-white rounded-[2rem] border border-resto-ciruela/10">
+              <div className="py-20 text-center bg-white rounded-[2rem] border border-resto-ciruela/10" role="status">
                 <div className="w-10 h-10 mx-auto mb-4 rounded-full border-4 border-resto-oliva/20 border-t-resto-oliva animate-spin" />
                 <p className="text-resto-acero font-semibold">Cargando el salón...</p>
               </div>
@@ -528,8 +532,8 @@ export default function MesasPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void eliminarMesa(seleccionada)}
-                    className="flex-1 rounded-xl border border-resto-ciruela/15 px-4 py-2.5 text-sm font-bold text-resto-acero hover:border-resto-dorado hover:text-resto-dorado transition-colors"
+                    onClick={() => setMesaAEliminar(seleccionada)}
+                    className="flex-1 rounded-xl border border-resto-ciruela/15 px-4 py-2.5 text-sm font-bold text-resto-acero hover:border-resto-dorado hover:text-resto-canela transition-colors"
                   >
                     🗑 Eliminar
                   </button>
@@ -571,7 +575,10 @@ export default function MesasPage() {
 
       {/* MODAL ALTA / EDICIÓN DE MESA */}
       {modal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-resto-ciruela/40 backdrop-blur-sm p-4" role="dialog" aria-modal="true">
+        <Modal
+          ariaLabel={editandoId != null ? 'Editar mesa' : 'Nueva mesa'}
+          onClose={cerrarModal}
+        >
           <form onSubmit={guardarMesa} className="w-full max-w-md rounded-[2rem] bg-white p-6 md:p-8 shadow-xl">
             <h3 className="text-2xl font-black">{editandoId != null ? 'Editar mesa' : 'Nueva mesa'}</h3>
             <p className="text-sm text-resto-acero mt-2">
@@ -641,7 +648,20 @@ export default function MesasPage() {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
+      )}
+
+      {mesaAEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar mesa"
+          mensaje={`¿Eliminar "${mesaAEliminar.nombre}" del mapa? El historial de platos preparados se conserva.`}
+          onCancel={() => setMesaAEliminar(null)}
+          onConfirm={() => {
+            const mesa = mesaAEliminar;
+            setMesaAEliminar(null);
+            void eliminarMesa(mesa);
+          }}
+        />
       )}
     </main>
   );

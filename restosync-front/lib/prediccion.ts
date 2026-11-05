@@ -154,7 +154,7 @@ export async function pedirPrediccion(
 
 // ---------- Utilidades compartidas por la pantalla y los gráficos ----------
 
-export const PALETA_RESTO = ['#4A5D23', '#E0A96D', '#3A1124', '#7393B3'] as const;
+export const PALETA_RESTO = ['#4A5D23', '#E0A96D', '#3A1124', '#54718E'] as const;
 
 /** "2026-11-05" → "05/11" para el eje X. */
 export function fechaDDMM(iso: string): string {
