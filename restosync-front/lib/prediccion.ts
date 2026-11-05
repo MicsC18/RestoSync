@@ -106,6 +106,11 @@ export type PrediccionResponse = {
 
 // ---------- Llamadas a los servicios ----------
 
+// Umbrales de espera: si el servicio no responde en tiempo, el fetch se aborta y la pantalla
+// muestra el aviso correspondiente en vez de quedar colgada en el spinner (IA caída/colgada).
+const TIMEOUT_HISTORIAL_MS = 15_000; // core-service
+const TIMEOUT_PREDICCION_MS = 20_000; // IA: cubre el peor caso (Gemini timeout 15 s → fallback a reglas)
+
 /** Pide el historial agregado al core-service (JWT + X-Local-Id, §1.1). */
 export async function pedirHistorial(
   token: string,
@@ -114,6 +119,7 @@ export async function pedirHistorial(
 ): Promise<HistorialResponse> {
   const respuesta = await fetch(apiUrl(`/api/v1/analitica/historial?dias=${dias}`), {
     headers: authHeaders(token, localId),
+    signal: AbortSignal.timeout(TIMEOUT_HISTORIAL_MS),
   });
   if (!respuesta.ok) {
     throw new Error(`No se pudo cargar el historial (${respuesta.status})`);
@@ -124,6 +130,8 @@ export async function pedirHistorial(
 /**
  * Envía el historial al microservicio de IA y devuelve la proyección (§1.2).
  * Con NEXT_PUBLIC_USE_IA_MOCK=true usa el mock local sin tocar el puerto 8000.
+ * Si el servicio está caído o colgado, el timeout aborta el fetch y el llamador
+ * (page.tsx) toma el catch → tarjeta "IA fuera de servicio" + Reintentar.
  */
 export async function pedirPrediccion(
   historial: HistorialResponse,
@@ -136,6 +144,7 @@ export async function pedirPrediccion(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ historial, horizonteDias }),
+    signal: AbortSignal.timeout(TIMEOUT_PREDICCION_MS),
   });
   if (!respuesta.ok) {
     throw new Error(`La IA no pudo proyectar la demanda (${respuesta.status})`);
