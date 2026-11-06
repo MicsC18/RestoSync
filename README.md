@@ -23,22 +23,48 @@ implementa pagos ni cobros.**
 
 ## 1. Backend (`core-service`)
 
-La conexión a PostgreSQL se toma de `src/main/resources/application.properties`. Podés sobrescribirla
-con variables de entorno sin tocar el archivo:
+### 1.1 Configurar las credenciales (obligatorio)
+
+`src/main/resources/application.properties` **ya no contiene ninguna credencial**: solo define de
+dónde se leen. Para levantar el backend hace falta crear el perfil local, que no se versiona:
+
+```powershell
+cd core-service\src\main\resources
+notepad application-local.properties   # crearlo con los valores de la tabla de abajo
+```
+
+| Clave | Valor |
+|---|---|
+| `spring.datasource.url` | cadena de conexión de Neon (la que figura en el proyecto de la consola de Neon) |
+| `spring.datasource.username` | rol de la base |
+| `spring.datasource.password` | contraseña del rol |
+| `restosync.jwt.secret` | cualquier cadena de **32 bytes o más** |
+
+Ese archivo está ignorado por `src/main/resources/.gitignore`, así que **no puede commitearse**.
+Si clonaste el repo desde cero, pedile las credenciales a quien ya tenga el perfil: no están en
+GitHub a propósito.
+
+### 1.2 Levantar la API
+
+```powershell
+cd core-service
+$env:SPRING_PROFILES_ACTIVE = "local"
+.\gradlew.bat bootRun
+```
+
+Si preferís no crear el archivo, la alternativa equivalente es inyectar todo por variables de
+entorno (en este caso la clave JWT se llama `JWT_SECRET`):
 
 ```powershell
 $env:DB_URL = "jdbc:postgresql://<host>/<db>?sslmode=require"
 $env:DB_USERNAME = "<usuario>"
 $env:DB_PASSWORD = "<contraseña>"
+$env:JWT_SECRET = "<cadena-de-al-menos-32-caracteres>"
 ```
 
-Levantar la API:
-
-```powershell
-cd core-service
-.\gradlew.bat bootRun
-```
-
+- **Sin perfil `local` ni variables, el backend no levanta**: Spring falla con un error de
+  placeholder sin resolver (`Could not resolve placeholder 'DB_URL'`). Es el comportamiento
+  querido, así nadie conecta el servicio contra una base sorpresa.
 - El esquema se actualiza solo al arrancar (`ddl-auto=update` + migraciones legacy en `initData`).
 - En el primer arranque se siembra el restaurante demo **"La Farola"** con datos de prueba
   (idempotente: no pisa datos existentes ni cuentas reales):
@@ -172,3 +198,11 @@ envía `X-Local-Id` en las rutas con scope de local.
 ## Documentación del proyecto
 
 - `proyecto.md`: enunciado original.
+- `Plan-General.md`: plan de las 6 fases del MVP, con los correctivos aplicados en cada una.
+- `Plan-IA.md`: plan del módulo analítico y predictivo.
+- `Plan-Mejoras.md`: auditoría y mejoras puntuales (seguridad de secretos, documentación, agentes).
+- `AGENTS.md`: convenciones y trampas conocidas para quien trabaje en el repo con un agente de IA
+  (raíz y por módulo).
+
+Los tres `Plan-*.md` están gitignoreados a propósito: son documentos de trabajo locales, no
+entregables del repo.

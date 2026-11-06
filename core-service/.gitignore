@@ -47,6 +47,8 @@ out/
 ### Archivos de configuración local de Spring Boot 
 **/src/main/resources/application-local.yml
 **/src/main/resources/application-dev.yml
+**/src/main/resources/application-local.properties
+**/src/main/resources/application-dev.properties
 
 ### Archivos del sistema operativo ###
 # macOS
