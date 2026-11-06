@@ -108,6 +108,12 @@ NEXT_PUBLIC_USE_IA_MOCK=false
 Con el flag en `true` el escaneo de tickets trae datos de ejemplo que después se confirman y
 guardan de verdad; útil si no querés levantar `restosync-ia` mientras desarrollás.
 
+**Navegación por rol** (barra superior, también como menú en mobile): Inicio (`/dashboard`) ·
+Operación (Inventario, Menú, Mesas, Agregar compra) · Análisis (Analítica, IA Predictiva) ·
+Administración (Locales, Cuentas — solo Admin) · Sistema · Salir. En `/sistema` se ve el estado
+del core y del servicio de IA y los datos de la sesión; **no se configura ninguna key desde el
+navegador**: la única `GEMINI_API_KEY` es la del `.env` del microservicio.
+
 ## 3. Microservicio de IA (`restosync-ia`)
 
 La lectura de tickets por IA usa este servicio: el navegador le envía el archivo directamente
@@ -127,14 +133,15 @@ Verificá que respondió con `GET http://localhost:8000/` (devuelve `{"estado": 
 Si preferís desarrollar sin el servicio, poné `NEXT_PUBLIC_USE_IA_MOCK=true` en el front y
 reiniciá `npm run dev`.
 
-### Monitor predictivo de demanda (`/analitica`)
+### Monitor predictivo de demanda (`/prediccion`)
 
 Además del escaneo de tickets, `restosync-ia` expone la proyección de demanda que consume la
-pantalla de Analítica. El **frontend es el punto de composición**: el core no orquesta a la IA y
-la IA no toca la base de datos.
+pantalla **IA Predictiva** (`/prediccion`). `/analitica` muestra solo métricas reales del local y
+enlaza a `/prediccion` con el botón **Ver IA Predictiva →**. El **frontend es el punto de
+composición**: el core no orquesta a la IA y la IA no toca la base de datos.
 
 ```
-/analitica
+/prediccion
   ├─ 1. GET  /api/v1/analitica/historial?dias=90   → core-service (JWT + X-Local-Id)
   ├─ 2. POST /api/v1/ia/prediccion-demanda          → restosync-ia (body: historial + horizonteDias)
   │        └─ pandas: demanda, mermas, compras ── Gemini (opcional): insights en texto natural
@@ -149,7 +156,7 @@ la IA no toca la base de datos.
   igual con `insights.fuente = "reglas"` (nunca devuelve `5xx` por un problema de Gemini).
 - Con historial insuficiente (< 7 días de consumo) responde `datosInsuficientes: true` y el front
   muestra un estado vacío, no un error.
-- En `/analitica` se puede cambiar el horizonte (7 / 14 / 30 días) y la proyección se recalcula
+- En `/prediccion` se puede cambiar el horizonte (7 / 14 / 30 días) y la proyección se recalcula
   sin volver a pedir el historial al core. Si el servicio de IA está caído, aparece un aviso con
   botón **Reintentar** y la analítica actual queda intacta.
 
@@ -170,11 +177,12 @@ la IA no toca la base de datos.
   la marca Ocupada.
 - **Cuentas**: ABM de gerentes por el Admin (email único, contraseña BCrypt, reasignación de local).
   La baja se bloquea si la cuenta tiene movimientos o preparaciones registradas (auditoría).
-- **Analítica**: conteos reales del local (stock, por vencer, menú, mesas), distribución por categoría,
-  reposición sugerida por stock mínimo y últimas preparaciones. Sobre esa base, el **monitor
-  predictivo** proyecta la demanda de cada insumo (gráficos Recharts con horizonte 7 / 14 / 30 días),
-  anticipa quiebres de stock y mermas, sugiere compras por prioridad y muestra recomendaciones
-  redactadas por Gemini o, si la IA no responde, por reglas de consumo.
+- **Analítica (`/analitica`)**: conteos reales del local (stock, por vencer, menú, mesas),
+  distribución por categoría, reposición sugerida por stock mínimo y últimas preparaciones.
+- **IA Predictiva (`/prediccion`)**: sobre el historial real del local, el monitor predictivo
+  proyecta la demanda de cada insumo (gráficos Recharts con horizonte 7 / 14 / 30 días), anticipa
+  quiebres de stock y mermas, sugiere compras por prioridad y muestra recomendaciones redactadas
+  por Gemini o, si la IA no responde, por reglas de consumo.
 
 ## API principal (`/api/v1`)
 
@@ -189,8 +197,10 @@ la IA no toca la base de datos.
 | Cuentas | `GET/POST /cuentas-gerentes` · `PUT/DELETE /cuentas-gerentes/{id}` |
 | Analítica | `GET /analitica/historial?dias=` (historial agregado del local para el monitor predictivo) |
 
-El microservicio de IA (`restosync-ia`, fuera del `/api/v1` del core) expone además
-`POST /api/v1/ia/escanear-ticket` y `POST /api/v1/ia/prediccion-demanda`.
+El microservicio de IA es un **servicio aparte** que corre en el puerto 8000 y **comparte el prefijo
+`/api/v1` con el core**: `POST /api/v1/ia/escanear-ticket` y `POST /api/v1/ia/prediccion-demanda`
+pertenecen a `restosync-ia` (el navegador los llama directo, sin pasar por el core), no a
+`core-service`.
 
 Todas las rutas (excepto register/login) requieren `Authorization: Bearer <token>`; el Admin además
 envía `X-Local-Id` en las rutas con scope de local.
