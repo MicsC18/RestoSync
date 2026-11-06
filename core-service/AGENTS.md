@@ -38,8 +38,9 @@ funcionando —Spring resuelve los beans por anotaciones, no por convención de 
   agregan credenciales reales como default** al `application.properties` versionado, ni una clave
   de firma JWT de respaldo legible en el código. `JwtService` valida al arrancar: clave vacía o de
   menos de 32 bytes y el core **no levanta** (hay test que lo fija).
-- CORS: `CorsConfig.kt` debe autorizar los mismos orígenes que `restosync-ia/main.py` (localhost,
-  127.0.0.1 y la red local `192.168.x.x:3000`, para probar desde el teléfono). **Ambas listas se
+- CORS: `CorsConfig.kt` autoriza los mismos orígenes que `restosync-ia/main.py` (alineados desde
+  Plan-Mejoras §5): `localhost:3000`, `127.0.0.1:3000`, `localhost:8080` y el patrón
+  `192.168.*.*:3000` (red local, para probar el escaneo desde el teléfono). **Ambas listas se
   mantienen sincronizadas a mano**; si se cambia una, se cambia la otra.
 
 ## Tests
