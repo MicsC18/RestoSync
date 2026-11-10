@@ -78,9 +78,15 @@ export default function DashboardPage() {
 
   const totalProductos = productos.length;
 
-  const productosProximosAVencer = productos.filter(
-    (producto) => (producto.cantidad ?? 0) > 0 && producto.diasRestantes <= 3
+  const productosVencidos = productos.filter(
+    (producto) => (producto.cantidad ?? 0) > 0 && producto.diasRestantes < 0
   ).length;
+
+  const productosPorVencer = productos.filter(
+    (producto) => (producto.cantidad ?? 0) > 0 && producto.diasRestantes >= 0 && producto.diasRestantes <= 3
+  ).length;
+
+  const productosEnAlerta = productosVencidos + productosPorVencer;
 
   const productosAbiertos = productos.filter(
     (producto) => producto.estado === 'Abierto'
@@ -162,29 +168,45 @@ export default function DashboardPage() {
         ========================= */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
 
-          {/* PRÓXIMOS A VENCER */}
-          <div className="rounded-2xl border border-resto-dorado/30 bg-resto-dorado/10 p-5">
+          {/* ALERTAS DE VENCIMIENTO */}
+          <div className={`rounded-2xl border p-5 ${
+            productosVencidos > 0
+              ? 'border-red-300 bg-red-50/60'
+              : 'border-resto-dorado/30 bg-resto-dorado/10'
+          }`}>
 
             <div className="flex items-center justify-between">
               <span className="text-2xl">
-                ⚠️
+                {productosVencidos > 0 ? '⚠️' : '⏳'}
               </span>
 
-              <span className="text-xs font-bold text-resto-canela uppercase tracking-wide">
-                Atención
+              <span className={`text-xs font-bold uppercase tracking-wide ${
+                productosVencidos > 0 ? 'text-red-700' : 'text-resto-canela'
+              }`}>
+                {productosVencidos > 0 ? 'Urgente' : 'Atención'}
               </span>
             </div>
 
             <p className="text-3xl font-black mt-4">
-              {productosProximosAVencer}
+              {productosEnAlerta}
             </p>
 
             <p className="text-sm font-semibold mt-1">
-              productos vencen pronto
+              {productosVencidos > 0 && productosPorVencer > 0
+                ? `${productosVencidos} vencido(s) · ${productosPorVencer} por vencer`
+                : productosVencidos > 0
+                ? `${productosVencidos === 1 ? 'producto ya venció' : 'productos ya vencieron'}`
+                : productosPorVencer > 0
+                ? `${productosPorVencer === 1 ? 'producto vence pronto' : 'productos vencen pronto'}`
+                : 'Sin productos en riesgo'}
             </p>
 
             <p className="text-xs text-resto-acero mt-2">
-              Próximos 3 días
+              {productosVencidos > 0
+                ? 'Requiere descarte o revisión'
+                : productosPorVencer > 0
+                ? 'Próximos 3 días'
+                : 'Inventario al día'}
             </p>
 
           </div>
@@ -354,12 +376,20 @@ export default function DashboardPage() {
 
                         <span
                           className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                            producto.diasRestantes <= 3
+                            producto.diasRestantes < 0
+                              ? 'bg-red-100 text-red-700'
+                              : producto.diasRestantes <= 3
                               ? 'bg-resto-dorado/20 text-resto-canela'
                               : 'bg-resto-oliva/10 text-resto-oliva'
                           }`}
                         >
-                          {producto.diasRestantes} días
+                          {producto.diasRestantes < 0
+                            ? 'Vencido'
+                            : producto.diasRestantes === 0
+                            ? 'Vence hoy'
+                            : producto.diasRestantes === 1
+                            ? 'En 1 día'
+                            : `En ${producto.diasRestantes} días`}
                         </span>
 
                       </div>
@@ -374,8 +404,18 @@ export default function DashboardPage() {
                     {/* VENCIMIENTO */}
                     <div className="text-right hidden sm:block">
 
-                      <p className="text-xs text-resto-acero">
-                        Vence
+                      <p className={`text-xs ${
+                        producto.diasRestantes < 0
+                          ? 'font-bold text-red-700'
+                          : producto.diasRestantes === 0
+                          ? 'font-bold text-resto-canela'
+                          : 'text-resto-acero'
+                      }`}>
+                        {producto.diasRestantes < 0
+                          ? 'Venció'
+                          : producto.diasRestantes === 0
+                          ? 'Vence hoy'
+                          : 'Vence'}
                       </p>
 
                       <p className="text-sm font-bold">
