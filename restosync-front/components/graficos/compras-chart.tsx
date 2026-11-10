@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { CompraItem, PrioridadCompra } from '@/lib/prediccion';
+import { formatearCantidad } from '@/lib/numero';
 
 // Colores por prioridad con la paleta existente (Plan-IA §4.2).
 const COLOR_PRIORIDAD: Record<PrioridadCompra, string> = {
@@ -74,7 +75,7 @@ function ComprasTooltip({ active, payload }: { active?: boolean; payload?: Toolt
   return (
     <div className="bg-white border border-resto-ciruela/15 rounded-xl shadow-lg px-4 py-3 text-xs max-w-72">
       <p className="font-black mb-1">
-        {compra.icono ?? '📦'} {compra.nombre}: <span className="text-resto-canela">{compra.cantidadSugerida}</span>{' '}
+        {compra.icono ?? '📦'} {compra.nombre}: <span className="text-resto-canela">{formatearCantidad(compra.cantidadSugerida)}</span>{' '}
         {compra.unidadMedida}
       </p>
       <p className="text-resto-acero font-bold mb-1">Prioridad {compra.prioridad.toLowerCase()}</p>

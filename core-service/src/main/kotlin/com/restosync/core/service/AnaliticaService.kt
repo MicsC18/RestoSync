@@ -11,6 +11,7 @@ import com.restosync.core.repository.LoteRepository
 import com.restosync.core.repository.MovimientoStockRepository
 import com.restosync.core.repository.ProduccionRepository
 import com.restosync.core.security.UsuarioPrincipal
+import com.restosync.core.util.redondear
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -127,9 +128,6 @@ class AnaliticaService(
                 )
             }
             .sortedWith(compareBy({ it.fecha }, { it.platoNombre }))
-
-    /** Evita artefactos de punto flotante (0.30000000000000004) en el contrato JSON. */
-    private fun redondear(valor: Double): Double = Math.round(valor * 100.0) / 100.0
 
     internal companion object {
         const val DIAS_DEFAULT = 90

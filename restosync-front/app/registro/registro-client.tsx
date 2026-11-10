@@ -1,13 +1,21 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { aiServiceUrl, apiUrl, authHeaders } from '@/lib/api';
 import { useAuthSession } from '@/lib/use-auth-session';
 import { escanearTicketMock, usarMockIa } from '@/lib/ia-mock';
-import { CATEGORIAS_BASE, iconoParaInsumo } from '@/lib/insumos';
+import { CATEGORIAS_BASE } from '@/lib/insumos';
+import { redondearCantidad } from '@/lib/numero';
+import { procesarDictado, UNIDADES_DICTADO, type ItemDictado } from '@/lib/dictado';
 
-type SpeechRecognitionResult = ArrayLike<{ transcript: string }>;
+type SpeechRecognitionAlternative = { transcript: string };
+
+/** Resultado de una frase: `isFinal` distingue lo confirmado del texto provisorio. */
+type SpeechRecognitionResult = {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionAlternative;
+};
 
 type SpeechRecognitionEvent = {
   results: ArrayLike<SpeechRecognitionResult>;
@@ -32,6 +40,8 @@ type ProductoDetectado = {
   categoria: string;
   icono: string;
   cantidad: number;
+  /** Unidad real del ítem; la trae la IA, el mock o el parser local (§2.5). */
+  unidadMedida: string;
   diasRestantes: number;
   estado: 'Cerrado' | 'Abierto';
 };
@@ -52,6 +62,16 @@ export default function RegistroClient() {
 
   const [grabando, setGrabando] = useState(false);
   const [transcripcion, setTranscripcion] = useState('');
+  // Texto provisorio mientras se habla (resultados interinos, en gris).
+  const [interim, setInterim] = useState('');
+  const [procesandoDictado, setProcesandoDictado] = useState(false);
+  // Aviso sutil del dictado (corte por silencio, uso del parser local): no es error.
+  const [avisoDictado, setAvisoDictado] = useState('');
+
+  // Instancia viva del reconocedor: la manipulan los botones empezar/terminar (§2.2).
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  // True cuando el stop() lo pidió el usuario; evita el aviso de "se cortó sola".
+  const paradaManualRef = useRef(false);
 
   // =========================
   // SELECCIONAR ARCHIVO
@@ -107,7 +127,13 @@ export default function RegistroClient() {
       const data: { itemsEncontrados?: ProductoDetectado[] } =
         await response.json();
       setProductos(
-        Array.isArray(data.itemsEncontrados) ? data.itemsEncontrados : []
+        Array.isArray(data.itemsEncontrados)
+          ? data.itemsEncontrados.map((item) => ({
+              ...item,
+              // Tickets: si Gemini no informó la unidad, default conservador (§2.5).
+              unidadMedida: item.unidadMedida || 'Unidades',
+            }))
+          : []
       );
 
     } catch (error: unknown) {
@@ -132,9 +158,10 @@ export default function RegistroClient() {
   // =========================
   // DICTADO
   // =========================
-  const handleDictado = () => {
+  const iniciarGrabacion = () => {
     setMensajeExito('');
     setErrorIa('');
+    setAvisoDictado('');
 
     const SpeechRecognition = (
       window as Window & {
@@ -147,48 +174,103 @@ export default function RegistroClient() {
       return;
     }
 
+    paradaManualRef.current = false;
     setGrabando(true);
 
     const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
 
     recognition.lang = 'es-AR';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    // Grabación continua con resultado provisorio: acumula varias frases hasta
+    // que el usuario presiona "Terminar de grabar" (§2.2).
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const texto = event.results[0][0].transcript.trim();
-      setTranscripcion(texto);
-      setGrabando(false);
+      const nuevosInterinos: string[] = [];
+      for (let i = event.results.length - 1; i >= 0; i--) {
+        const resultado = event.results[i];
+        // Solo los ítems confirmados por el motor se acumulan a la transcripción final.
+        if (resultado.isFinal) {
+          const texto = resultado[0].transcript.trim();
+          if (texto) {
+            setTranscripcion((actual) => (actual ? `${actual} ${texto}` : texto));
+          }
+        } else {
+          nuevosInterinos.unshift(resultado[0].transcript);
+        }
+      }
+      setInterim(nuevosInterinos.join(' ').trim());
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event: { error: string }) => {
+      paradaManualRef.current = true; // El onend que sigue no debe mostrar el aviso de corte.
       setGrabando(false);
-      setErrorIa('No pudimos interpretar el audio.');
+      setInterim('');
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setErrorIa('No pudimos acceder al micrófono. Revisá los permisos del navegador.');
+      } else if (event.error === 'no-speech') {
+        setErrorIa('No se escuchó nada. Probá de nuevo acercando el micrófono.');
+      } else {
+        setErrorIa('No pudimos interpretar el audio.');
+      }
     };
 
     recognition.onend = () => {
       setGrabando(false);
+      setInterim('');
+      // Chrome corta la sesión por silencio prolongado: avisar, pero NO reiniciar
+      // automáticamente (evita loops de permisos).
+      if (!paradaManualRef.current) {
+        setAvisoDictado('La grabación terminó. Podés volver a empezar.');
+      }
     };
 
     recognition.start();
   };
 
-  const agregarDictadoARevision = () => {
-    const nombre = transcripcion.trim();
-    if (!nombre) return;
+  const terminarGrabacion = () => {
+    paradaManualRef.current = true;
+    setGrabando(false);
+    recognitionRef.current?.stop();
+  };
 
-    setProductos((actuales) => [
-      ...actuales,
-      {
-        nombre,
-        categoria: 'Almacén',
-        icono: iconoParaInsumo(nombre, 'Almacén'),
-        cantidad: 1,
-        diasRestantes: 30,
-        estado: 'Cerrado',
-      },
-    ]);
-    setTranscripcion('');
+  // Transforma el texto acumulado en ítems de inventario (IA con fallback local, §2.4).
+  const procesarDictadoARevision = async () => {
+    const texto = transcripcion.trim();
+    if (!texto || grabando || procesandoDictado) return;
+
+    setProcesandoDictado(true);
+    setErrorIa('');
+    setAvisoDictado('');
+    setMensajeExito('');
+
+    try {
+      const { items, fuente } = await procesarDictado(texto);
+
+      if (items.length === 0) {
+        setErrorIa('No pudimos interpretar el dictado. Corregí el texto y volvé a procesarlo.');
+        return;
+      }
+
+      // Normalizamos acá para garantizar `unidadMedida` incluso con respuestas viejas.
+      const nuevos: ProductoDetectado[] = items.map((item: ItemDictado) => ({
+        ...item,
+        unidadMedida: item.unidadMedida || 'Unidades',
+      }));
+      setProductos((actuales) => [...actuales, ...nuevos]);
+
+      if (fuente === 'local') {
+        setAvisoDictado(
+          'La IA no estuvo disponible; interpretamos el texto localmente. Revisá los ítems.'
+        );
+      }
+
+      setTranscripcion('');
+      setInterim('');
+    } finally {
+      setProcesandoDictado(false);
+    }
   };
 
   // =========================
@@ -241,9 +323,9 @@ export default function RegistroClient() {
               nombre: prod.nombre,
               categoria: prod.categoria,
               icono: prod.icono,
-              unidadMedida: 'Unidades',
+              unidadMedida: prod.unidadMedida || 'Unidades',
               stockMinimo: 1,
-              cantidad: prod.cantidad,
+              cantidad: redondearCantidad(prod.cantidad),
               diasRestantes: prod.diasRestantes,
               estado: prod.estado || 'Cerrado',
               vencimiento: `${prod.diasRestantes} días`,
@@ -489,21 +571,38 @@ export default function RegistroClient() {
               </h3>
 
               <p className="max-w-lg mx-auto mt-4 text-resto-manteca/60 leading-relaxed">
-                Presioná el botón y hablá naturalmente.
-                RestoSync podrá transformar tu lista de compras
-                en productos del inventario.
+                Presioná &quot;Empezar a grabar&quot; y hablá naturalmente; podés dictar varias
+                frases. Cuando termines, presioná &quot;Terminar de grabar&quot; y procesá el
+                texto para convertir tu lista de compras en productos del inventario.
               </p>
 
-              <button
-                type="button"
-                onClick={handleDictado}
-                disabled={grabando}
-                className="mt-8 px-8 py-4 rounded-2xl bg-resto-dorado text-resto-ciruela font-black hover:bg-resto-manteca transition-all disabled:opacity-50"
-              >
-                {grabando
-                  ? '🎙️ Escuchando...'
-                  : '🎙️ Dictar compra'}
-              </button>
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={iniciarGrabacion}
+                  disabled={grabando || procesandoDictado}
+                  className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-resto-dorado text-resto-ciruela font-black hover:bg-resto-manteca transition-all disabled:opacity-50"
+                >
+                  {grabando
+                    ? '🎙️ Grabando...'
+                    : '🎙️ Empezar a grabar'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={terminarGrabacion}
+                  disabled={!grabando}
+                  className="w-full sm:w-auto px-8 py-4 rounded-2xl border border-resto-manteca/30 text-resto-manteca font-black hover:bg-resto-manteca/10 transition-all disabled:opacity-40"
+                >
+                  ⏹ Terminar de grabar
+                </button>
+              </div>
+
+              {avisoDictado && (
+                <p className="mt-4 text-sm text-resto-dorado" role="status">
+                  {avisoDictado}
+                </p>
+              )}
 
               <textarea
                 value={transcripcion}
@@ -513,16 +612,24 @@ export default function RegistroClient() {
                 className="mt-6 w-full rounded-xl border border-resto-manteca/20 bg-resto-manteca p-3 text-left text-resto-ciruela"
                 aria-label="Texto reconocido por dictado"
               />
+              {interim && (
+                <p className="mt-1 min-h-5 text-left text-sm italic text-resto-manteca/40" aria-live="polite">
+                  {interim}
+                </p>
+              )}
               <p className="mt-2 text-sm text-resto-manteca/60">
-                El texto se agrega como un producto con valores iniciales de prototipo que puedes revisar.
+                Al procesar, el dictado se transforma en un ítem por producto, con cantidad y
+                unidad estimadas que podes revisar antes de guardar.
               </p>
               <button
                 type="button"
-                onClick={agregarDictadoARevision}
-                disabled={!transcripcion.trim()}
+                onClick={procesarDictadoARevision}
+                disabled={!transcripcion.trim() || grabando || procesandoDictado}
                 className="mt-4 rounded-xl bg-resto-oliva px-5 py-3 font-bold text-resto-manteca disabled:opacity-50"
               >
-                Agregar a revisión
+                {procesandoDictado
+                  ? 'Procesando dictado...'
+                  : 'Procesar dictado'}
               </button>
 
             </div>
@@ -647,7 +754,7 @@ export default function RegistroClient() {
                     </div>
 
 
-                    {/* CANTIDAD */}
+                    {/* CANTIDAD + UNIDAD */}
                     <div className="w-full md:w-28">
 
                       <label className="text-[10px] uppercase tracking-wider font-bold text-resto-acero">
@@ -657,7 +764,8 @@ export default function RegistroClient() {
                       <input
                         type="number"
                         min="1"
-                        value={prod.cantidad}
+                        step="0.5"
+                        value={redondearCantidad(prod.cantidad)}
                         onChange={(e) =>
                           actualizarProducto(
                             index,
@@ -667,6 +775,27 @@ export default function RegistroClient() {
                         }
                         className="w-full mt-1 rounded-xl border border-resto-ciruela/10 bg-resto-manteca px-3 py-2 text-center font-bold focus:outline-none focus:ring-2 focus:ring-resto-oliva"
                       />
+
+                      <label className="sr-only" htmlFor={`unidad-${index}`}>
+                        Unidad de medida
+                      </label>
+
+                      <select
+                        id={`unidad-${index}`}
+                        value={prod.unidadMedida || 'Unidades'}
+                        onChange={(e) =>
+                          actualizarProducto(
+                            index,
+                            'unidadMedida',
+                            e.target.value
+                          )
+                        }
+                        className="mt-2 w-full rounded-lg border border-resto-ciruela/10 bg-resto-manteca px-2 py-1 text-xs text-resto-acero focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                      >
+                        {Array.from(new Set([...UNIDADES_DICTADO, prod.unidadMedida])).filter(Boolean).map((unidad) => (
+                          <option key={unidad} value={unidad}>{unidad}</option>
+                        ))}
+                      </select>
 
                     </div>
 

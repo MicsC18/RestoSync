@@ -1,8 +1,10 @@
 package com.restosync.core.service
 
 import com.restosync.core.dto.PrepararRequest
+import com.restosync.core.model.EstadoMesa
 import com.restosync.core.model.Insumo
 import com.restosync.core.model.Local
+import com.restosync.core.model.Mesa
 import com.restosync.core.model.Plato
 import com.restosync.core.model.Produccion
 import com.restosync.core.model.RecetaInsumo
@@ -20,6 +22,7 @@ import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
+import java.time.LocalDateTime
 import java.util.Optional
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -145,5 +148,97 @@ class MenuServicePrepararTest {
         assertEquals(2.0, cantidadCaptor.value)
         assertEquals(8.0, respuesta.stockRestante.single().cantidadRestante)
         Mockito.verify(produccionRepository, Mockito.times(1)).save(cualquiera())
+    }
+
+    @Test
+    fun `requerido de receta no acumula ruido de Double`() {
+        stubBase()
+        // 0.1 Kg por plato x 3 platos = 0.30000000000000004 en `Double` puro.
+        Mockito.`when`(recetaInsumoRepository.findByPlatoId(5L))
+            .thenReturn(listOf(RecetaInsumo(id = 1, plato = plato, insumo = pollo, cantidad = 0.1)))
+        Mockito.`when`(inventarioService.stockDisponiblePorNombre(local, "Pechuga de pollo")).thenReturn(10.0)
+        Mockito.`when`(usuarioRepository.findById(1L)).thenReturn(
+            Optional.of(Usuario(id = 1, email = admin.email, contrasena = "hash", restaurante = restaurante))
+        )
+        Mockito.`when`(produccionRepository.save(cualquiera<Produccion>()))
+            .thenAnswer { it.arguments[0] as Produccion }
+
+        preparar(cantidad = 3.0)
+
+        val cantidadCaptor = ArgumentCaptor.forClass(Double::class.javaObjectType)
+        Mockito.verify(inventarioService).descontarFIFO(
+            cualquiera(), cualquiera(), cualquiera(), cantidadCaptor.capture() ?: 0.0, cualquiera(), cualquiera()
+        )
+        assertEquals(0.3, cantidadCaptor.value)
+    }
+
+    // ==================== listarProducciones: sesión de platos (Plan-Mesas-Dictado §1) ====================
+
+    private val mesaBase = Mesa(id = 7, nombre = "Mesa 1", estado = EstadoMesa.LIBRE, local = local)
+
+    private fun produccion(id: Long, fecha: LocalDateTime) = Produccion(
+        id = id,
+        platoNombre = "Milanesa",
+        cantidad = 1.0,
+        mesa = mesaBase,
+        mesaNombre = mesaBase.nombre,
+        fechaHora = fecha,
+        local = local
+    )
+
+    private fun stubListar(mesa: Mesa) {
+        Mockito.`when`(localContextService.resolverLocal(admin, null)).thenReturn(local)
+        Mockito.`when`(mesaService.mesaDelLocal(local, 7L)).thenReturn(mesa)
+    }
+
+    @Test
+    fun `mesa LIBRE no muestra producciones y ni siquiera consulta el historial`() {
+        // Estado LIBRE con marca rezagada (no deberia pasar, pero el gate es el estado).
+        stubListar(mesaBase.copy(estado = EstadoMesa.LIBRE, fechaOcupacion = LocalDateTime.now().minusHours(1)))
+
+        assertEquals(emptyList(), service.listarProducciones(admin, null, 7L))
+
+        Mockito.verify(produccionRepository, Mockito.never())
+            .findByLocalIdAndMesaIdOrderByFechaHoraDesc(Mockito.anyLong(), Mockito.anyLong())
+    }
+
+    @Test
+    fun `mesa OCUPADA sin marca de sesion no muestra producciones`() {
+        stubListar(mesaBase.copy(estado = EstadoMesa.OCUPADA))
+
+        assertEquals(emptyList(), service.listarProducciones(admin, null, 7L))
+
+        Mockito.verify(produccionRepository, Mockito.never())
+            .findByLocalIdAndMesaIdOrderByFechaHoraDesc(Mockito.anyLong(), Mockito.anyLong())
+    }
+
+    @Test
+    fun `mesa OCUPADA solo muestra lo producido desde la ocupacion actual`() {
+        val inicio = LocalDateTime.now().minusHours(1)
+        stubListar(mesaBase.copy(estado = EstadoMesa.OCUPADA, fechaOcupacion = inicio))
+        Mockito.`when`(produccionRepository.findByLocalIdAndMesaIdOrderByFechaHoraDesc(10L, 7L))
+            .thenReturn(
+                listOf(
+                    produccion(3, inicio.plusMinutes(30)),   // de la sesión actual
+                    produccion(2, inicio),                   // justo al ocupar (borde: entra)
+                    produccion(1, inicio.minusMinutes(1))    // de una ocupación anterior: fuera
+                )
+            )
+
+        val visibles = service.listarProducciones(admin, null, 7L)
+
+        assertEquals(listOf(3L, 2L), visibles.map { it.id })
+    }
+
+    @Test
+    fun `vista global sin mesaId no se ve afectada por la sesion`() {
+        Mockito.`when`(localContextService.resolverLocal(admin, null)).thenReturn(local)
+        Mockito.`when`(produccionRepository.findByLocalIdOrderByFechaHoraDesc(10L))
+            .thenReturn(listOf(produccion(1, LocalDateTime.now().minusDays(3))))
+
+        val visibles = service.listarProducciones(admin, null, null)
+
+        assertEquals(listOf(1L), visibles.map { it.id })
+        Mockito.verify(mesaService, Mockito.never()).mesaDelLocal(cualquiera(), Mockito.anyLong())
     }
 }

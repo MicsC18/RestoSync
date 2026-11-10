@@ -3,6 +3,7 @@ package com.restosync.core.model
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.persistence.*
+import java.time.LocalDateTime
 
 /** Estados básicos de una mesa (sin pagos ni cuenta abierta). */
 enum class EstadoMesa {
@@ -36,6 +37,13 @@ data class Mesa(
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     val estado: EstadoMesa = EstadoMesa.LIBRE,
+
+    /**
+     * Inicio de la ocupación actual (Plan-Mesas-Dictado §1). Solo tiene valor con
+     * estado OCUPADA: marca desde qué momento la mesa muestra sus "platos actuales";
+     * al liberarse se pone null y la historia sigue intacta en `producciones`.
+     */
+    val fechaOcupacion: LocalDateTime? = null,
 
     @JsonIgnore
     @ManyToOne(fetch = FetchType.EAGER)

@@ -11,6 +11,8 @@ export type ItemEscaneadoMock = {
   categoria: string;
   icono: string;
   cantidad: number;
+  /** Unidad real del ítem (Plan-Mesas-Dictado §2.5: el mock también la trae). */
+  unidadMedida: string;
   diasRestantes: number;
   estado: 'Cerrado' | 'Abierto';
 };
@@ -25,6 +27,7 @@ const ITEMS_EJEMPLO: ItemEscaneadoMock[] = [
     categoria: 'Lácteos',
     icono: '🥛',
     cantidad: 2,
+    unidadMedida: 'Litros',
     diasRestantes: 7,
     estado: 'Cerrado',
   },
@@ -33,6 +36,7 @@ const ITEMS_EJEMPLO: ItemEscaneadoMock[] = [
     categoria: 'Frutas y verduras',
     icono: '🍅',
     cantidad: 6,
+    unidadMedida: 'Kilos',
     diasRestantes: 4,
     estado: 'Cerrado',
   },
@@ -41,6 +45,7 @@ const ITEMS_EJEMPLO: ItemEscaneadoMock[] = [
     categoria: 'Almacén',
     icono: '🫙',
     cantidad: 1,
+    unidadMedida: 'Latas',
     diasRestantes: 120,
     estado: 'Cerrado',
   },
@@ -49,6 +54,7 @@ const ITEMS_EJEMPLO: ItemEscaneadoMock[] = [
     categoria: 'Carnes',
     icono: '🍗',
     cantidad: 3,
+    unidadMedida: 'Kilos',
     diasRestantes: 3,
     estado: 'Cerrado',
   },

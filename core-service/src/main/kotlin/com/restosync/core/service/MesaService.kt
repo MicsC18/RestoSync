@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
+import java.time.LocalDateTime
 
 /**
  * Mesas por local. El CRUD se adelanta a Fase 3 para que "preparar un plato para una
@@ -52,13 +53,23 @@ class MesaService(
     fun actualizarMesa(principal: UsuarioPrincipal, localIdHeader: Long?, id: Long, request: MesaRequest): Mesa {
         val local = localContextService.resolverLocal(principal, localIdHeader)
         val mesa = mesaDelLocal(local, id)
+        val nuevoEstado = parseEstado(request.estado) ?: mesa.estado
+        // Plan-Mesas-Dictado §1.3: la marca de ocupación sólo se (re)inicia al pasar a
+        // OCUPADA desde otro estado; liberar (LIBRE/RESERVADA) la borra. OCUPADA->OCUPADA
+        // la conserva para no reiniciar la sesión de platos en curso.
+        val nuevaMarca = when {
+            nuevoEstado == EstadoMesa.OCUPADA && mesa.estado != EstadoMesa.OCUPADA -> LocalDateTime.now()
+            nuevoEstado == EstadoMesa.OCUPADA -> mesa.fechaOcupacion
+            else -> null
+        }
         return mesaRepository.save(
             mesa.copy(
                 nombre = request.nombre.trim().ifBlank { mesa.nombre },
                 capacidad = request.capacidad ?: mesa.capacidad,
                 posicionX = request.posicionX ?: mesa.posicionX,
                 posicionY = request.posicionY ?: mesa.posicionY,
-                estado = parseEstado(request.estado) ?: mesa.estado
+                estado = nuevoEstado,
+                fechaOcupacion = nuevaMarca
             )
         )
     }
@@ -87,11 +98,15 @@ class MesaService(
         return mesa
     }
 
-    /** Al preparar un plato para una mesa, la mesa pasa a OCUPADA. */
+    /** Al preparar un plato para una mesa, la mesa pasa a OCUPADA e inicia su sesión de platos. */
     @Transactional
     fun marcarOcupada(mesa: Mesa): Mesa {
-        if (mesa.estado == EstadoMesa.OCUPADA) return mesa
-        return mesaRepository.save(mesa.copy(estado = EstadoMesa.OCUPADA))
+        // Ya ocupada con sesión abierta: no-op (no se reinicia la marca).
+        if (mesa.estado == EstadoMesa.OCUPADA && mesa.fechaOcupacion != null) return mesa
+        // Si estaba OCUPADA sin marca (mesa creada así o fila legada), se abre la sesión ahora.
+        return mesaRepository.save(
+            mesa.copy(estado = EstadoMesa.OCUPADA, fechaOcupacion = mesa.fechaOcupacion ?: LocalDateTime.now())
+        )
     }
 
     private fun parseEstado(estado: String?): EstadoMesa? {

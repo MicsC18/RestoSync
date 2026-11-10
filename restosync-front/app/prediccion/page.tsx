@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatearCantidad } from '@/lib/numero';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
 import DemandaChart from '@/components/graficos/demanda-chart';
@@ -179,7 +180,7 @@ export default function PrediccionPage() {
                   </p>
                   <p className="text-sm text-resto-manteca/70">
                     Cobertura de {quiebreMasUrgente.coberturaDias} días · consumo base{' '}
-                    {quiebreMasUrgente.consumoDiarioBase} {quiebreMasUrgente.unidadMedida}/día.
+                    {formatearCantidad(quiebreMasUrgente.consumoDiarioBase)} {quiebreMasUrgente.unidadMedida}/día.
                   </p>
                 </div>
               </div>
@@ -224,7 +225,7 @@ export default function PrediccionPage() {
                       <li key={`lista-${compra.insumoId}`} className="py-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-bold text-sm truncate">
-                            {compra.icono ?? '📦'} {compra.nombre} · {compra.cantidadSugerida} {compra.unidadMedida}
+                            {compra.icono ?? '📦'} {compra.nombre} · {formatearCantidad(compra.cantidadSugerida)} {compra.unidadMedida}
                           </p>
                           <p className="text-xs text-resto-acero">{compra.motivo}</p>
                         </div>
@@ -257,7 +258,7 @@ export default function PrediccionPage() {
                         <tr key={`merma-${merma.insumoId}-${merma.fechaVencimiento}`}>
                           <td className="py-2.5 font-bold">{merma.icono ?? '📦'} {merma.nombre}</td>
                           <td className="py-2.5 text-resto-acero">
-                            {merma.cantidadEnRiesgo} {merma.unidadMedida}
+                            {formatearCantidad(merma.cantidadEnRiesgo)} {merma.unidadMedida}
                           </td>
                           <td className="py-2.5">
                             <div className="flex items-center gap-2">

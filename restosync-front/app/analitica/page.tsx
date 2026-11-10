@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuthSession } from '@/lib/use-auth-session';
 import { apiUrl, authHeaders } from '@/lib/api';
+import { formatearCantidad } from '@/lib/numero';
 import AppHeader from '@/components/app-header';
 
 type Insumo = {
@@ -37,9 +38,9 @@ const COLORES = [
   { barra: 'bg-resto-acero', punto: 'bg-resto-acero' },
 ];
 
-function cantidadLegible(valor: number) {
-  return Number.isInteger(valor) ? String(valor) : valor.toFixed(2).replace(/\.?0+$/, '');
-}
+// `cantidadLegible` es el formateador compartido (`lib/numero`); se lo re-exporta con el
+// nombre que ya usaban las vistas de esta pantalla.
+const cantidadLegible = formatearCantidad;
 
 export default function AnaliticaPage() {
   const { token, checking, logout, sesion, localActivoId, setLocalActivoId } = useAuthSession();

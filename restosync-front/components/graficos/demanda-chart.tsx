@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import { PALETA_RESTO, fechaDDMM, type DemandaItem } from '@/lib/prediccion';
+import { formatearCantidad } from '@/lib/numero';
 
 const MAX_INSUMOS = 5;
 
@@ -148,7 +149,7 @@ function DemandaTooltip({
         const unidad = unidades.get(clave) ?? '';
         return (
           <p key={clave} className="text-resto-acero font-bold">
-            {nombre}: <span className="text-resto-ciruela">{entrada.value}</span> {unidad}
+            {nombre}: <span className="text-resto-ciruela">{typeof entrada.value === 'number' ? formatearCantidad(entrada.value) : entrada.value}</span> {unidad}
           </p>
         );
       })}

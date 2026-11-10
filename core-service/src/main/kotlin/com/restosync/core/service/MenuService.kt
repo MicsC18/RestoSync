@@ -8,6 +8,7 @@ import com.restosync.core.dto.PrepararRequest
 import com.restosync.core.dto.ProduccionDto
 import com.restosync.core.dto.RecetaLineaDto
 import com.restosync.core.dto.StockRestanteDto
+import com.restosync.core.model.EstadoMesa
 import com.restosync.core.model.Insumo
 import com.restosync.core.model.Local
 import com.restosync.core.model.Plato
@@ -20,6 +21,8 @@ import com.restosync.core.repository.ProduccionRepository
 import com.restosync.core.repository.RecetaInsumoRepository
 import com.restosync.core.repository.UsuarioRepository
 import com.restosync.core.security.UsuarioPrincipal
+import com.restosync.core.util.cantidadLegible
+import com.restosync.core.util.redondear
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -154,9 +157,12 @@ class MenuService(
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad de ${insumo.nombre} en la receta debe ser mayor a cero")
             }
             val clave = insumo.nombre.trim().lowercase()
-            val requerido = linea.cantidad * cantidad
+            // `linea.cantidad * cantidad` acumula ruido (`0.1 * 3 = 0.30000000000000004`):
+            // se redondea el requerido para comparar y descontar el valor real.
+            val requerido = redondear(linea.cantidad * cantidad)
             val grupo = grupos[clave]
-            if (grupo == null) grupos[clave] = GrupoRequisito(insumo, requerido) else grupo.total += requerido
+            if (grupo == null) grupos[clave] = GrupoRequisito(insumo, requerido)
+            else grupo.total = redondear(grupo.total + requerido)
         }
 
         // Prevalidar todo el stock antes de tocar nada: un solo error claro con los faltantes.
@@ -164,7 +170,7 @@ class MenuService(
         for (grupo in grupos.values) {
             val disponible = inventarioService.stockDisponiblePorNombre(local, grupo.insumo.nombre)
             if (disponible < grupo.total) {
-                val falta = grupo.total - disponible
+                val falta = redondear(grupo.total - disponible)
                 faltantes.add("${grupo.insumo.nombre} (faltan ${cantidadLegible(falta)} ${grupo.insumo.unidadMedida})")
             }
         }
@@ -230,8 +236,17 @@ class MenuService(
     fun listarProducciones(principal: UsuarioPrincipal, localIdHeader: Long?, mesaId: Long?): List<ProduccionDto> {
         val local = localContextService.resolverLocal(principal, localIdHeader)
         val producciones = if (mesaId != null) {
-            mesaService.mesaDelLocal(local, mesaId)
-            produccionRepository.findByLocalIdAndMesaIdOrderByFechaHoraDesc(local.id, mesaId)
+            val mesa = mesaService.mesaDelLocal(local, mesaId)
+            // Sesión de platos (Plan-Mesas-Dictado §1): una mesa solo muestra lo producido
+            // durante su ocupación actual. Al liberarse la marca queda null y el historial
+            // sigue intacto en la tabla; sin mesaId (vista global) no se filtra nada.
+            val desde = if (mesa.estado == EstadoMesa.OCUPADA) mesa.fechaOcupacion else null
+            if (desde == null) {
+                emptyList()
+            } else {
+                produccionRepository.findByLocalIdAndMesaIdOrderByFechaHoraDesc(local.id, mesaId)
+                    .filter { !it.fechaHora.isBefore(desde) }
+            }
         } else {
             produccionRepository.findByLocalIdOrderByFechaHoraDesc(local.id)
         }
@@ -269,7 +284,7 @@ class MenuService(
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad de ${insumo.nombre} debe ser mayor a cero")
             }
             val previo = porInsumo[insumo.id]
-            porInsumo[insumo.id] = insumo to ((previo?.second ?: 0.0) + linea.cantidad)
+            porInsumo[insumo.id] = insumo to redondear((previo?.second ?: 0.0) + linea.cantidad)
         }
         for ((insumo, cantidad) in porInsumo.values) {
             recetaInsumoRepository.save(RecetaInsumo(plato = plato, insumo = insumo, cantidad = cantidad))
@@ -285,7 +300,7 @@ class MenuService(
                 insumoNombre = insumo.nombre,
                 icono = insumo.icono,
                 unidadMedida = insumo.unidadMedida,
-                cantidad = linea.cantidad
+                cantidad = redondear(linea.cantidad)
             )
         }
         return PlatoDetalleDto(
@@ -308,8 +323,4 @@ class MenuService(
         fechaHora = produccion.fechaHora.toString(),
         usuarioEmail = produccion.usuario?.email
     )
-
-    /** Muestra 2 en vez de 2.0 cuando la cantidad es entera. */
-    private fun cantidadLegible(valor: Double): String =
-        if (valor == Math.floor(valor) && !valor.isInfinite()) valor.toLong().toString() else valor.toString()
 }

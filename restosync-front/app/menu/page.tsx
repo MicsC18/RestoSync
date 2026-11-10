@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { apiUrl, authHeaders } from '@/lib/api';
+import { formatearCantidad } from '@/lib/numero';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
 import Modal from '@/components/modal';
@@ -139,7 +140,7 @@ export default function MenuPage() {
       precio: plato.precio != null ? String(plato.precio) : '',
       activo: plato.activo,
     });
-    setLineas(plato.ingredientes.map((l) => ({ insumoId: l.insumoId, cantidad: String(l.cantidad) })));
+    setLineas(plato.ingredientes.map((l) => ({ insumoId: l.insumoId, cantidad: formatearCantidad(l.cantidad) })));
     setErrorModal('');
     setModalPlato(true);
   };
@@ -410,7 +411,7 @@ export default function MenuPage() {
                         <li key={linea.id} className="inline-flex items-center gap-1.5 rounded-full bg-resto-manteca border border-resto-ciruela/10 px-3 py-1 text-xs font-semibold">
                           <span>{linea.icono || '📦'}</span>
                           <span>{linea.insumoNombre}</span>
-                          <span className="text-resto-acero">· {linea.cantidad} {linea.unidadMedida}</span>
+                          <span className="text-resto-acero">· {formatearCantidad(linea.cantidad)} {linea.unidadMedida}</span>
                         </li>
                       ))}
                     </ul>
@@ -550,7 +551,7 @@ export default function MenuPage() {
                           >
                             {insumos.map((i) => (
                               <option key={i.id} value={i.id}>
-                                {i.icono || '📦'} {i.nombre} ({i.cantidad ?? 0} {i.unidadMedida || 'Unidades'})
+                                {i.icono || '📦'} {i.nombre} ({formatearCantidad(i.cantidad)} {i.unidadMedida || 'Unidades'})
                               </option>
                             ))}
                           </select>
@@ -620,7 +621,7 @@ export default function MenuPage() {
               <div className="mt-6">
                 <div className="rounded-2xl border border-resto-oliva/40 bg-resto-oliva/10 p-5">
                   <p className="font-bold text-resto-oliva">
-                    ✓ {resultado.platoNombre} x{resultado.cantidad} preparado
+                    ✓ {resultado.platoNombre} x{formatearCantidad(resultado.cantidad)} preparado
                     {resultado.mesaNombre ? ` para ${resultado.mesaNombre}` : ' (sin mesa)'}
                   </p>
                   <p className="text-[10px] uppercase tracking-wider font-bold text-resto-acero mt-4 mb-2">Stock restante</p>
@@ -628,7 +629,7 @@ export default function MenuPage() {
                     {resultado.stockRestante.map((s) => (
                       <li key={s.nombre} className="flex justify-between">
                         <span>{s.nombre}</span>
-                        <span className="font-bold">{s.cantidadRestante} {s.unidadMedida}</span>
+                        <span className="font-bold">{formatearCantidad(s.cantidadRestante)} {s.unidadMedida}</span>
                       </li>
                     ))}
                   </ul>

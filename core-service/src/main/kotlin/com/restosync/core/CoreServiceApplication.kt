@@ -24,6 +24,7 @@ import com.restosync.core.repository.RecetaInsumoRepository
 import com.restosync.core.repository.RestauranteRepository
 import com.restosync.core.repository.UsuarioRepository
 import com.restosync.core.service.InventarioService
+import com.restosync.core.util.redondear
 import jakarta.persistence.EntityManager
 import kotlin.math.roundToInt
 import org.springframework.boot.CommandLineRunner
@@ -103,6 +104,15 @@ class CoreServiceApplication {
                 liberarColumnaRestauranteEnInsumos(entityManager)
                 // Movimientos ahora cuelgan de insumo/lote; la columna legacy alimento_id no debe bloquear inserts.
                 liberarColumnaAlimentoEnMovimientos(entityManager)
+                // Sanear el ruido de `Double` que se persistió antes de unificar el redondeo en
+                // el core (valores tipo 9.200000000000003 en stock y cantidades). Idempotente.
+                sanearRuidoPuntoFlotante(entityManager)
+                // Plan-Mesas-Dictado §1.4: columnas nuevas nullable con ddl-auto=update llegan null.
+                // Las mesas ya OCUPADA anteriores a `fechaOcupacion` abren sesión ahora (idempotente:
+                // solo toca las que tienen la marca nula, los reinicios no pisan sesiones activas).
+                mesaRepo.findAll()
+                    .filter { it.estado == EstadoMesa.OCUPADA && it.fechaOcupacion == null }
+                    .forEach { mesaRepo.save(it.copy(fechaOcupacion = LocalDateTime.now())) }
                 // Fase 2 (§4.5.7): insumos legacy sin lotes → lote inicial; agregados frescos en cada arranque.
                 inventarioService.migrarLotesLegacy()
                 // Filas viejas con lotes de varios vencimientos → una fila visible por vencimiento (§4.5).
@@ -369,7 +379,7 @@ class CoreServiceApplication {
                     movimientoRepo.save(
                         MovimientoStock(
                             tipo = TipoMovimiento.PRODUCCION,
-                            cantidad = round2(cantidadDia * linea.cantidad),
+                            cantidad = redondear(cantidadDia * linea.cantidad),
                             fechaHora = dia.atTime(12, 5),
                             motivo = motivoSeed,
                             insumo = insumo,
@@ -388,7 +398,7 @@ class CoreServiceApplication {
                     movimientoRepo.save(
                         MovimientoStock(
                             tipo = TipoMovimiento.ENTRADA,
-                            cantidad = round2(cantidadSemanal),
+                            cantidad = redondear(cantidadSemanal),
                             fechaHora = dia.atTime(9, 0),
                             motivo = motivoSeed,
                             insumo = insumo,
@@ -427,7 +437,38 @@ class CoreServiceApplication {
     private fun insumoDelLocal(insumoRepo: InsumoRepository, local: Local, nombre: String): Insumo? =
         insumoRepo.findByLocalIdAndNombreIgnoreCase(local.id, nombre).firstOrNull()
 
-    private fun round2(valor: Double): Double = Math.round(valor * 100.0) / 100.0
+    /**
+     * `lotes.cantidad`, `insumos.cantidad`, `movimientos_stock.cantidad` y las cantidades de
+     * receta se escribieron durante mucho tiempo con el resultado crudo de sumas y restas de
+     * `Double`, así que en Neon hay filas con ruido (`9.200000000000003`). Desde que el core
+     * normaliza con `redondear` en cada escritura no se generan más, pero las viejas seguían
+     * visibles. Se acotan a dos decimales **solo donde hay ruido** (`cantidad <> ROUND(...)`),
+     * así la migración es idempotente y no reescribe datos sanos ni su `updated_at`.
+     */
+    private fun sanearRuidoPuntoFlotante(entityManager: EntityManager) {
+        val columnas = listOf(
+            "lotes.cantidad",
+            "insumos.cantidad",
+            "movimientos_stock.cantidad",
+            "receta_insumos.cantidad",
+            "producciones.cantidad"
+        )
+        var limpiadas = 0
+        for (columna in columnas) {
+            try {
+                limpiadas += entityManager.createNativeQuery(
+                    "UPDATE ${columna.substringBefore('.')} " +
+                        "SET $columna = ROUND($columna::numeric, 2) " +
+                        "WHERE $columna IS NOT NULL AND $columna <> ROUND($columna::numeric, 2)"
+                ).executeUpdate()
+            } catch (_: Exception) {
+                // Tabla o columna inexistente (esquema previo al ddl): no frena el arranque.
+            }
+        }
+        if (limpiadas > 0) {
+            println(">>> Cantidades limpiadas de ruido de punto flotante: $limpiadas fila(s)")
+        }
+    }
 
     /**
      * movimientos_stock y producciones nacieron de migraciones legacy y varios demos

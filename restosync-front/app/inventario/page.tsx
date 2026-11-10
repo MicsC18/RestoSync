@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { apiUrl, authHeaders } from '@/lib/api';
+import { formatearCantidad, redondearCantidad } from '@/lib/numero';
 import { CATEGORIAS_BASE, iconoParaInsumo } from '@/lib/insumos';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
@@ -110,7 +111,7 @@ export default function InventarioPage() {
             vencimiento: insumo.vencimiento ?? null,
             diasRestantes: insumo.diasRestantes ?? 0,
             estado: insumo.estado === 'Abierto' ? 'Abierto' : 'Cerrado',
-            stock: insumo.cantidad ?? 0,
+            stock: redondearCantidad(insumo.cantidad),
             unidad: insumo.unidadMedida || 'Unidades',
           })));
         }
@@ -163,7 +164,7 @@ export default function InventarioPage() {
     setForm({
       nombre: producto.nombre,
       categoria: producto.categoria,
-      cantidad: String(producto.stock),
+      cantidad: formatearCantidad(producto.stock),
       unidadMedida: producto.unidad,
       diasRestantes: String(Math.max(producto.diasRestantes, 0)),
       estado: producto.estado,
@@ -389,7 +390,7 @@ export default function InventarioPage() {
                       </td>
                       <td className="p-5">
                         <p className="font-black text-lg">
-                          {prod.stock} <span className="text-sm font-semibold text-resto-acero">{prod.unidad}</span>
+                          {formatearCantidad(prod.stock)} <span className="text-sm font-semibold text-resto-acero">{prod.unidad}</span>
                         </p>
                       </td>
                       <td className="p-5">

@@ -3,8 +3,8 @@
 ## 1. Qué es el proyecto
 
 Sistema de control de inventario y mermas para restaurantes con carga de compras por lectura de
-tickets con IA y monitor predictivo de demanda. Trabajo final universitario; todo el dominio está
-en español (Argentina).
+tickets y dictado por voz con IA, y monitor predictivo de demanda. Trabajo final universitario; todo
+el dominio está en español (Argentina).
 
 | Módulo | Stack | Puerto |
 |---|---|---|
@@ -18,7 +18,7 @@ El front llama **directo** al core (8080) y a la IA (8000). El core **no orquest
 ## 2. Cómo correr (PowerShell)
 
 ```powershell
-# core-service — necesita el perfil local con las credenciales (README.md, sección 1)
+# core-service — necesita el perfil local con las credenciales (README.md, "Guía rápida")
 cd core-service
 $env:SPRING_PROFILES_ACTIVE = "local"
 .\gradlew.bat bootRun
@@ -74,6 +74,16 @@ Detalle completo con su justificación en `Plan-General.md` §4.4/§4.5 (ver §8
 - La fila en stock cero **no se borra**: queda como registro.
 - El historial sobrevive a los borrados vía **snapshots** (nombre y unidad copiados en el
   movimiento); borrar un insumo no reescribe el pasado.
+- **Sesión de platos por mesa**: con `mesaId`, `GET /producciones` devuelve solo lo preparado desde
+  que la mesa pasó a OCUPADA (`Mesa.fechaOcupacion`) y nada si está Libre/Reservada. El filtro vive
+  **solo en el core** (la UI no decide esto) y **no cambia** el `GET` global: el historial sigue
+  completo en dashboard y analítica. Ver `Plan-Mesas-Dictado.md` §1.
+- **Cantidades a dos decimales**: toda `Double` que se persiste o se compara en el core pasa por
+  `com.restosync.core.util.redondear` (y `cantidadLegible` para los mensajes). Las sumas y restas
+  del dominio acumulan ruido de punto flotante (`0.1 + 0.2 = 0.30000000000000004`) que antes se
+  guardaba en `lotes.cantidad` / `insumos.cantidad` y se veía como `9.200000000000003`. Regla
+  fija en `InventarioServiceRedondeoTest` y `CantidadesTest`; el front además formatea con
+  `lib/numero.ts`.
 
 ## 7. Cómo verificar un cambio
 
@@ -90,11 +100,12 @@ Detener `npm run dev` antes de `npm run build`: chocan en `.next`. Detener los d
 
 | Archivo | Contiene |
 |---|---|
-| `README.md` | arranque de los tres módulos, configuraciones, endpoints, funcionalidades |
+| `README.md` | **guía rápida numerada (5 pasos)** para instalar y correr sin conocer el proyecto, más el detalle por módulo, configuraciones, endpoints y funcionalidades |
 | `proyecto.md` | enunciado del trabajo final |
 | `Plan-General.md` | las 6 fases del MVP con **más de 30 correctivos** registrados y las reglas de dominio (§4) |
 | `Plan-IA.md` | módulo predictivo: contratos, fórmulas (§1.3), capas |
 | `Plan-Mejoras.md` | auditoría de seguridad/documentación y su estado de implementación (Fases A–E) |
+| `Plan-Mesas-Dictado.md` | sesión de platos por mesa (transiciones de `fechaOcupacion`) y dictado por voz (motor híbrido + parser local) |
 
 **Los `Plan-*.md` están gitignoreados a propósito** (documentos de trabajo locales, no
 entregrables). Consecuencia operativa: `Glob` y `Grep` **no los ven** (el Grep los filtra por

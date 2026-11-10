@@ -17,11 +17,12 @@ Convenciones generales del proyecto (idioma, alcance, verificación, parada de s
 
 App Router con una ruta por pantalla: `/` (landing pública), `/login`, `/register`,
 `/dashboard` (Inicio), `/inventario`, `/menu`, `/mesas`, `/registro` (carga de compra con IA,
-acepta `?modo=ticket`), `/analitica` (métricas reales), `/prediccion` (monitor predictivo),
-`/locales`, `/cuentas` (solo Admin), `/sistema` (estado de servicios y sesión; **no recibe
-ninguna API key**). Componentes compartidos en `components/` (`app-header`, `app-navigation`,
-`modal`, `confirm-dialog`, `selector-local`, `graficos/`) y lógica de datos en `lib/` (`api.ts`,
-`use-auth-session.ts`, `prediccion.ts`, `insumos.ts`, `ia-mock.ts`).
+acepta `?modo=ticket` y `?modo=audio`), `/analitica` (métricas reales), `/prediccion` (monitor
+predictivo), `/locales`, `/cuentas` (solo Admin), `/sistema` (estado de servicios y sesión; **no
+recibe ninguna API key**). Componentes compartidos en `components/` (`app-header`,
+`app-navigation`, `modal`, `confirm-dialog`, `selector-local`, `graficos/`) y lógica de datos en
+`lib/` (`api.ts`, `use-auth-session.ts`, `prediccion.ts`, `insumos.ts`, `ia-mock.ts`,
+`dictado.ts`, `numero.ts`).
 
 ## Sesión y autenticación
 
@@ -44,7 +45,22 @@ Una ruta nueva se registra en `app-navigation.tsx` **y** en `app-header.tsx`; el
 - El CRUD de insumos (`/inventario`) es **vía auxiliar de corrección**; la carga principal es
   `/registro` con IA. No rediseñar la UX de inventario como si la carga manual fuera el flujo
   principal.
-- **No usar `window.confirm`**: todo borrado pasa por `components/confirm-dialog.tsx`.
+- **No usar `window.confirm`**: todo borrado pasa por `components/confirm-dialog.tsx`. El
+  `ConfirmDialog` de `/mesas` al liberar una mesa con platos es **informativo** ("los platos dejan de
+  mostrarse; el historial se conserva"), no un pedido de permiso.
+- **Los platos "actuales" de una mesa los decide el core**, no la UI: `/mesas` muestra lo que devuelve
+  `GET /producciones?mesaId=` (ya filtrado por la ocupación en curso) y ni siquiera lo pide si la mesa
+  seleccionada no está OCUPADA. El tipo `Mesa` trae `fechaOcupacion`.
+- **Dictado (`/registro?modo=audio`)**: la transformación texto → ítems pasa por `lib/dictado.ts`
+  (`procesarDictado`), que **nunca lanza**: mock → IA real → parser local con aviso en pantalla. No
+  agregar ahí un `throw` ni un try/catch en la pantalla. La grabación usa Web Speech API con
+  `continuous` + `interimResults`, la instancia vive en un `useRef` y **no se reinicia sola** en
+  `onend` (loop de permisos de Chrome). El guardado manda la `unidadMedida` real del ítem (default
+  `'Unidades'`), no un valor fijo.
+- **Nunca se renderiza una cantidad cruda**: toda `cantidad` / `stock` que llega del core o de la IA
+  se muestra con `formatearCantidad` (y se normaliza con `redondearCantidad` al cargarla) desde
+  `lib/numero.ts`. Sin eso aparecen ruidos de punto flotante como `9.200000000000003 Kilos`. No
+  volver a escribir un formateador local en una pantalla (`/analitica` reexporta el compartido).
 - En los modales, **no depender de `onClose` dentro de un `useEffect`** (ni meterlo en la lista
   de dependencias de efectos de foco): el foco se pierde mientras se tipea — bug ya corregido.
 - Textos es-AR con voseo; labels de producto en inglés no van.
