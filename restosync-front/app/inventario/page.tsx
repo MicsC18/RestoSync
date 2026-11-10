@@ -419,9 +419,19 @@ export default function InventarioPage() {
                             </span>
                           ) : (
                             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                              prod.diasRestantes <= 3 ? 'bg-resto-dorado/20 text-resto-canela' : 'bg-resto-oliva/10 text-resto-oliva'
+                              prod.diasRestantes < 0
+                                ? 'bg-red-100 text-red-700'
+                                : prod.diasRestantes <= 3
+                                ? 'bg-resto-dorado/20 text-resto-canela'
+                                : 'bg-resto-oliva/10 text-resto-oliva'
                             }`}>
-                              {prod.diasRestantes < 0 ? 'Vencido' : `En ${prod.diasRestantes} días`}
+                              {prod.diasRestantes < 0
+                                ? 'Vencido'
+                                : prod.diasRestantes === 0
+                                ? 'Vence hoy'
+                                : prod.diasRestantes === 1
+                                ? 'En 1 día'
+                                : `En ${prod.diasRestantes} días`}
                             </span>
                           )}
                           {prod.stock > 0 && prod.vencimiento && <span className="text-sm text-resto-acero hidden sm:inline-block">({prod.vencimiento})</span>}
