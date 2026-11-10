@@ -14,6 +14,7 @@ import com.restosync.core.repository.MovimientoStockRepository
 import com.restosync.core.repository.RecetaInsumoRepository
 import com.restosync.core.repository.UsuarioRepository
 import com.restosync.core.security.UsuarioPrincipal
+import com.restosync.core.util.redondear
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -31,6 +32,10 @@ import java.time.temporal.ChronoUnit
  * cantidad a la fila existente. Mismo nombre con vencimiento distinto → fila nueva e
  * independiente, con su propio lote y vencimiento visible. `cantidad`, `diasRestantes` y
  * `vencimiento` del insumo son agregados de visualización derivados de sus lotes.
+ *
+ * Toda cantidad que se persiste o se compara pasa por `redondear` (dos decimales): las sumas y
+ * restas de `Double` acumulan ruido (`12.3 - 3.1 = 9.200000000000001`) y ese ruido se guardaba en
+ * `lotes.cantidad` / `insumos.cantidad`, se veía en pantalla y podía dar un falso "no hay stock".
  */
 @Service
 class InventarioService(
@@ -116,7 +121,7 @@ class InventarioService(
             nombre = nombre,
             categoria = request.categoria ?: "Almacén",
             icono = request.icono ?: iconoAutomatico(nombre, request.categoria ?: "Almacén"),
-            unidadMedida = request.unidadMedida ?: "Unidades",
+            unidadMedida = request.unidadMedida ?: "unidad",
             stockMinimo = request.stockMinimo ?: 1.0,
             cantidad = 0.0,
             diasRestantes = diasRestantes,
@@ -128,8 +133,8 @@ class InventarioService(
         val insumo = insumoRepository.save(base)
 
         val lote = loteRepository.save(
-            lotePrevio?.copy(cantidad = lotePrevio.cantidad + cantidad)
-                ?: Lote(cantidad = cantidad, fechaVencimiento = fechaVencimiento, insumo = insumo)
+            lotePrevio?.copy(cantidad = redondear(lotePrevio.cantidad + cantidad))
+                ?: Lote(cantidad = redondear(cantidad), fechaVencimiento = fechaVencimiento, insumo = insumo)
         )
 
         val actualizado = recalcularAgregados(insumo)
@@ -155,7 +160,7 @@ class InventarioService(
         // no se rechaza el renombre a un nombre ya existente.
         val nombre = request.nombre.trim().ifBlank { insumo.nombre }
 
-        val totalPrevio = loteRepository.findByInsumoId(insumo.id).sumOf { it.cantidad }
+        val totalPrevio = redondear(loteRepository.findByInsumoId(insumo.id).sumOf { it.cantidad })
         ajustarCantidad(insumo, request)
         ajustarVencimiento(insumo, request)
 
@@ -233,7 +238,7 @@ class InventarioService(
         }
         val previo = loteRepository.findByInsumoIdAndFechaVencimiento(insumo.id, lote.fechaVencimiento)
         val guardado = loteRepository.save(
-            previo?.copy(cantidad = previo.cantidad + lote.cantidad) ?: lote.copy(insumo = insumo)
+            previo?.copy(cantidad = redondear(previo.cantidad + lote.cantidad)) ?: lote.copy(insumo = insumo)
         )
         recalcularAgregados(insumo)
         registrarMovimiento(
@@ -260,7 +265,7 @@ class InventarioService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "La cantidad del lote no puede ser negativa")
         }
         val fechaVencimiento = request.fechaVencimiento ?: lote.fechaVencimiento
-        val guardado = loteRepository.save(lote.copy(cantidad = cantidad, fechaVencimiento = fechaVencimiento))
+        val guardado = loteRepository.save(lote.copy(cantidad = redondear(cantidad), fechaVencimiento = fechaVencimiento))
         recalcularAgregados(insumo)
         registrarMovimiento(
             tipo = TipoMovimiento.AJUSTE,
@@ -307,7 +312,7 @@ class InventarioService(
             MovimientoDto(
                 id = movimiento.id,
                 tipo = movimiento.tipo.name,
-                cantidad = movimiento.cantidad,
+                cantidad = redondear(movimiento.cantidad),
                 fechaHora = movimiento.fechaHora.toString(),
                 motivo = movimiento.motivo,
                 insumoId = movimiento.insumo?.id,
@@ -325,7 +330,7 @@ class InventarioService(
     @Transactional(readOnly = true)
     fun stockDisponiblePorNombre(local: Local, nombre: String): Double {
         val filas = insumoRepository.findByLocalIdAndNombreIgnoreCase(local.id, nombre.trim())
-        return filas.sumOf { fila -> loteRepository.findByInsumoId(fila.id).sumOf { it.cantidad } }
+        return redondear(filas.sumOf { fila -> loteRepository.findByInsumoId(fila.id).sumOf { it.cantidad } })
     }
 
     /**
@@ -351,18 +356,21 @@ class InventarioService(
         val lotes = filas
             .flatMap { loteRepository.findByInsumoIdOrderByFechaVencimientoAsc(it.id) }
             .sortedBy { it.fechaVencimiento }
-        val disponible = lotes.sumOf { it.cantidad }
-        if (disponible < cantidad) {
+        val disponible = redondear(lotes.sumOf { it.cantidad })
+        val requerido = redondear(cantidad)
+        // Se comparan los dos valores ya redondeados: sin esto, un disponible 9.199999999999999
+        // contra un requerido 9.2 rechazaba una preparación que sí tenía el stock justo.
+        if (disponible < requerido) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No hay stock suficiente de ${nombre.trim()}")
         }
 
-        var restante = cantidad
+        var restante = requerido
         val afectados = LinkedHashMap<Long, Insumo>()
         for (lote in lotes) {
             if (restante <= 0) break
-            val quitar = minOf(restante, lote.cantidad)
-            restante -= quitar
-            val nuevaCantidad = lote.cantidad - quitar
+            val quitar = redondear(minOf(restante, lote.cantidad))
+            restante = redondear(restante - quitar)
+            val nuevaCantidad = redondear(lote.cantidad - quitar)
             val insumo = lote.insumo
             val loteRef = if (nuevaCantidad <= 0) {
                 desvincularMovimientosDeLote(lote.id)
@@ -390,7 +398,7 @@ class InventarioService(
                 if (cantidad > 0) {
                     loteRepository.save(
                         Lote(
-                            cantidad = cantidad,
+                            cantidad = redondear(cantidad),
                             fechaVencimiento = LocalDate.now().plusDays(insumo.diasRestantes.toLong()),
                             insumo = insumo
                         )
@@ -481,21 +489,21 @@ class InventarioService(
         if (lotes.isEmpty()) {
             val dias = request.diasRestantes ?: insumo.diasRestantes
             loteRepository.save(
-                Lote(cantidad = nueva, fechaVencimiento = LocalDate.now().plusDays(dias.toLong()), insumo = insumo)
+                Lote(cantidad = redondear(nueva), fechaVencimiento = LocalDate.now().plusDays(dias.toLong()), insumo = insumo)
             )
             return
         }
-        val delta = nueva - lotes.sumOf { it.cantidad }
+        val delta = redondear(nueva - lotes.sumOf { it.cantidad })
         if (delta > 0) {
             val primero = lotes.first()
-            loteRepository.save(primero.copy(cantidad = primero.cantidad + delta))
+            loteRepository.save(primero.copy(cantidad = redondear(primero.cantidad + delta)))
         } else if (delta < 0) {
             var restante = -delta
             for (lote in lotes) {
                 if (restante <= 0) break
-                val quitar = minOf(restante, lote.cantidad)
-                restante -= quitar
-                val nuevaCantidad = lote.cantidad - quitar
+                val quitar = redondear(minOf(restante, lote.cantidad))
+                restante = redondear(restante - quitar)
+                val nuevaCantidad = redondear(lote.cantidad - quitar)
                 if (nuevaCantidad <= 0) {
                     desvincularMovimientosDeLote(lote.id)
                     loteRepository.delete(lote)
@@ -515,14 +523,14 @@ class InventarioService(
         val primero = lotes.firstOrNull()
         if (primero == null) {
             loteRepository.save(
-                Lote(cantidad = request.cantidad ?: insumo.cantidad ?: 0.0, fechaVencimiento = fecha, insumo = insumo)
+                Lote(cantidad = redondear(request.cantidad ?: insumo.cantidad ?: 0.0), fechaVencimiento = fecha, insumo = insumo)
             )
             return
         }
         if (primero.fechaVencimiento == fecha) return
         val destino = lotes.firstOrNull { it.id != primero.id && it.fechaVencimiento == fecha }
         if (destino != null) {
-            loteRepository.save(destino.copy(cantidad = destino.cantidad + primero.cantidad))
+            loteRepository.save(destino.copy(cantidad = redondear(destino.cantidad + primero.cantidad)))
             desvincularMovimientosDeLote(primero.id)
             loteRepository.delete(primero)
         } else {
@@ -530,7 +538,7 @@ class InventarioService(
         }
     }
 
-    /** `cantidad` = suma de lotes; `diasRestantes`/`vencimiento` salen del lote más próximo (0 si no hay lotes). */
+    /** `cantidad` = suma de lotes (redondeada); `diasRestantes`/`vencimiento` salen del lote más próximo (0 si no hay lotes). */
     private fun recalcularAgregados(insumo: Insumo): Insumo {
         val lotes = loteRepository.findByInsumoIdOrderByFechaVencimientoAsc(insumo.id)
         val masProximo = lotes.firstOrNull()
@@ -539,7 +547,7 @@ class InventarioService(
         } ?: 0
         return insumoRepository.save(
             insumo.copy(
-                cantidad = lotes.sumOf { it.cantidad },
+                cantidad = redondear(lotes.sumOf { it.cantidad }),
                 diasRestantes = dias,
                 vencimiento = masProximo?.fechaVencimiento?.format(formatoFecha)
             )
@@ -561,7 +569,8 @@ class InventarioService(
         movimientoRepository.save(
             MovimientoStock(
                 tipo = tipo,
-                cantidad = cantidad,
+                // Un solo choke point para la auditoría: ningún movimiento guarda ruido de `Double`.
+                cantidad = redondear(cantidad),
                 fechaHora = LocalDateTime.now(),
                 motivo = motivo,
                 insumo = insumo,

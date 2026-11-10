@@ -1,0 +1,3 @@
+# Local profile with the real credentials. Never commit it.
+application-local.properties
+application-dev.properties

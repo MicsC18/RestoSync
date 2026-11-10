@@ -3,8 +3,11 @@
 import Link from 'next/link';
 import { FormEvent, PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { apiUrl, authHeaders } from '@/lib/api';
+import { formatearCantidad } from '@/lib/numero';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
+import Modal from '@/components/modal';
+import ConfirmDialog from '@/components/confirm-dialog';
 
 type EstadoMesa = 'LIBRE' | 'OCUPADA' | 'RESERVADA';
 
@@ -15,6 +18,8 @@ type Mesa = {
   posicionX?: number | null;
   posicionY?: number | null;
   estado: EstadoMesa;
+  /** Inicio de la ocupación actual (solo con estado OCUPADA; Plan-Mesas-Dictado §1). */
+  fechaOcupacion?: string | null;
 };
 
 type Produccion = {
@@ -39,7 +44,7 @@ const ESTILOS_ESTADO: Record<EstadoMesa, { tarjeta: string; punto: string; etiqu
   OCUPADA: {
     tarjeta: 'bg-resto-dorado/10 border-resto-dorado/50 hover:border-resto-dorado',
     punto: 'bg-resto-dorado',
-    etiqueta: 'bg-resto-dorado/20 text-resto-dorado',
+    etiqueta: 'bg-resto-dorado/20 text-resto-canela',
   },
   RESERVADA: {
     tarjeta: 'bg-resto-ciruela/5 border-resto-ciruela/40 hover:border-resto-ciruela',
@@ -68,10 +73,13 @@ export default function MesasPage() {
   const [exito, setExito] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
-  // Mesa seleccionada + historial de producción.
+  // Mesa seleccionada + platos actuales (solo se muestran durante la ocupación actual).
   const [seleccionadaId, setSeleccionadaId] = useState<number | null>(null);
   const [producciones, setProducciones] = useState<Produccion[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
+
+  // Confirmación informativa al liberar una mesa con platos visibles (§1.4).
+  const [mesaALiberar, setMesaALiberar] = useState<{ mesa: Mesa; estado: EstadoMesa } | null>(null);
 
   // Modal alta/edición.
   const [modal, setModal] = useState(false);
@@ -80,6 +88,9 @@ export default function MesasPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorModal, setErrorModal] = useState('');
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
+
+  // Confirmación de eliminación (reemplaza al confirm() nativo).
+  const [mesaAEliminar, setMesaAEliminar] = useState<Mesa | null>(null);
 
   // Arrastre sobre el mapa (posiciones en porcentaje del canvas).
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -116,9 +127,13 @@ export default function MesasPage() {
     void cargarMesas();
   }, [checking, token, localActivoId, retryCount, cargarMesas]);
 
-  // Historial de la mesa seleccionada.
+  const seleccionada = mesas.find((mesa) => mesa.id === seleccionadaId) ?? null;
+  const ocupadaSeleccionada = seleccionada?.estado === 'OCUPADA';
+
+  // Platos actuales de la mesa seleccionada: solo se consultan si está OCUPADA
+  // (la regla dura la tiene el core filtrando por fechaOcupacion, Plan-Mesas-Dictado §1).
   useEffect(() => {
-    if (!token || localActivoId == null || seleccionadaId == null) {
+    if (!token || localActivoId == null || seleccionadaId == null || !ocupadaSeleccionada) {
       setProducciones([]);
       return;
     }
@@ -131,7 +146,7 @@ export default function MesasPage() {
         });
         if (response.ok && activo) setProducciones(await response.json());
       } catch {
-        // El historial es accesorio: si falla, el mapa sigue operativo.
+        // Los platos actuales son accesorios: si falla, el mapa sigue operativo.
       } finally {
         if (activo) setLoadingHistorial(false);
       }
@@ -140,9 +155,8 @@ export default function MesasPage() {
     return () => {
       activo = false;
     };
-  }, [token, localActivoId, seleccionadaId, retryCount]);
+  }, [token, localActivoId, seleccionadaId, ocupadaSeleccionada, retryCount]);
 
-  const seleccionada = mesas.find((mesa) => mesa.id === seleccionadaId) ?? null;
   const conteoEstados = {
     LIBRE: mesas.filter((m) => m.estado === 'LIBRE').length,
     OCUPADA: mesas.filter((m) => m.estado === 'OCUPADA').length,
@@ -280,7 +294,18 @@ export default function MesasPage() {
     }
   };
 
-  const cambiarEstado = async (mesa: Mesa, estado: EstadoMesa) => {
+  const cambiarEstado = (mesa: Mesa, estado: EstadoMesa) => {
+    if (mesa.estado === estado) return;
+    // Liberar una mesa ocupada que tiene platos actuales muestra una confirmación
+    // informativa; el PUT se ejecuta recién al confirmar (§1.4 del Plan-Mesas-Dictado).
+    if (mesa.estado === 'OCUPADA' && mesa.id === seleccionadaId && producciones.length > 0) {
+      setMesaALiberar({ mesa, estado });
+      return;
+    }
+    void ejecutarCambioEstado(mesa, estado);
+  };
+
+  const ejecutarCambioEstado = async (mesa: Mesa, estado: EstadoMesa) => {
     if (!token || mesa.estado === estado) return;
     setCambiandoEstado(true);
     setError('');
@@ -296,6 +321,8 @@ export default function MesasPage() {
       }
       const actualizada: Mesa = await response.json();
       setMesas((actuales) => actuales.map((m) => (m.id === actualizada.id ? actualizada : m)));
+      // Al salir de la ocupación, el panel pasa a mostrar la sesión vacía de inmediato.
+      if (mesa.id === seleccionadaId && estado !== 'OCUPADA') setProducciones([]);
       setExito(estado === 'LIBRE' ? `${mesa.nombre} liberada.` : `${mesa.nombre} marcada como ${ETIQUETAS_ESTADO[estado].toLowerCase()}.`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cambiar el estado.');
@@ -306,7 +333,6 @@ export default function MesasPage() {
 
   const eliminarMesa = async (mesa: Mesa) => {
     if (!token) return;
-    if (!window.confirm(`¿Eliminar "${mesa.nombre}" del mapa? El historial de platos preparados se conserva.`)) return;
     setError('');
     try {
       const response = await fetch(apiUrl(`/api/v1/mesas/${mesa.id}`), {
@@ -335,7 +361,7 @@ export default function MesasPage() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -357,7 +383,7 @@ export default function MesasPage() {
         {/* ENCABEZADO */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-dorado text-xs font-bold uppercase tracking-wider mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-canela text-xs font-bold uppercase tracking-wider mb-4">
               <span className="w-2 h-2 rounded-full bg-resto-dorado" />
               Salón
             </div>
@@ -365,9 +391,10 @@ export default function MesasPage() {
               Mapa de <span className="text-resto-oliva">mesas.</span>
             </h2>
             <p className="mt-4 text-resto-acero max-w-xl leading-relaxed">
-              Arrastrá las mesas para ordenar el salón, cambiá su estado y mirá qué platos se
-              prepararon para cada una. Los platos se preparan desde el{' '}
-              <Link href="/menu" className="font-bold text-resto-oliva hover:text-resto-dorado">Menú</Link>.
+              Arrastrá las mesas para ordenar el salón, cambiá su estado y mirá los{' '}
+              <span className="font-bold">platos actuales</span> de cada una: solo se muestran los
+              preparados durante la ocupación en curso. Los platos se preparan desde el{' '}
+              <Link href="/menu" className="font-bold text-resto-oliva hover:text-resto-canela">Menú</Link>.
             </p>
           </div>
           <div className="shrink-0">
@@ -406,7 +433,7 @@ export default function MesasPage() {
           {/* MAPA */}
           <div>
             {loading ? (
-              <div className="py-20 text-center bg-white rounded-[2rem] border border-resto-ciruela/10">
+              <div className="py-20 text-center bg-white rounded-[2rem] border border-resto-ciruela/10" role="status">
                 <div className="w-10 h-10 mx-auto mb-4 rounded-full border-4 border-resto-oliva/20 border-t-resto-oliva animate-spin" />
                 <p className="text-resto-acero font-semibold">Cargando el salón...</p>
               </div>
@@ -435,7 +462,7 @@ export default function MesasPage() {
                       key={mesa.id}
                       role="button"
                       tabIndex={0}
-                      aria-label={`${mesa.nombre}, ${ETIQUETAS_ESTADO[mesa.estado]}. Arrastrá para mover o Enter para ver el historial.`}
+                      aria-label={`${mesa.nombre}, ${ETIQUETAS_ESTADO[mesa.estado]}. Arrastrá para mover o Enter para ver sus platos actuales.`}
                       onPointerDown={(e) => iniciarArrastre(e, mesa)}
                       onPointerMove={moverArrastre}
                       onPointerUp={() => void finArrastre(mesa)}
@@ -466,7 +493,7 @@ export default function MesasPage() {
               </div>
             )}
             <p className="text-[11px] text-resto-acero mt-3">
-              Arrastrá una mesa para cambiar su posición (se guarda sola). Hacé click para ver su historial.
+              Arrastrá una mesa para cambiar su posición (se guarda sola). Hacé click para ver sus platos actuales.
             </p>
           </div>
 
@@ -477,7 +504,7 @@ export default function MesasPage() {
                 <div className="text-3xl mb-3">👆</div>
                 <h3 className="font-bold">Elegí una mesa</h3>
                 <p className="text-sm text-resto-acero mt-1">
-                  Hacé click en una mesa del mapa para ver su estado y los platos preparados.
+                  Hacé click en una mesa del mapa para ver su estado y sus platos actuales.
                 </p>
               </div>
             ) : (
@@ -504,7 +531,7 @@ export default function MesasPage() {
                         key={estado}
                         type="button"
                         disabled={cambiandoEstado || seleccionada.estado === estado}
-                        onClick={() => void cambiarEstado(seleccionada, estado)}
+                        onClick={() => cambiarEstado(seleccionada, estado)}
                         className={`flex-1 rounded-xl px-2 py-2 text-xs font-bold border transition-all disabled:opacity-50 ${
                           seleccionada.estado === estado
                             ? ESTILOS_ESTADO[estado].etiqueta + ' border-transparent'
@@ -528,23 +555,25 @@ export default function MesasPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void eliminarMesa(seleccionada)}
-                    className="flex-1 rounded-xl border border-resto-ciruela/15 px-4 py-2.5 text-sm font-bold text-resto-acero hover:border-resto-dorado hover:text-resto-dorado transition-colors"
+                    onClick={() => setMesaAEliminar(seleccionada)}
+                    className="flex-1 rounded-xl border border-resto-ciruela/15 px-4 py-2.5 text-sm font-bold text-resto-acero hover:border-resto-dorado hover:text-resto-canela transition-colors"
                   >
                     🗑 Eliminar
                   </button>
                 </div>
 
-                {/* HISTORIAL */}
+                {/* PLATOS ACTUALES (sesión de la ocupación en curso) */}
                 <div className="mt-6">
                   <p className="text-[10px] uppercase tracking-wider font-bold text-resto-acero mb-2">
-                    Platos preparados para esta mesa
+                    Platos actuales
                   </p>
                   {loadingHistorial ? (
-                    <p className="text-sm text-resto-acero italic">Cargando historial...</p>
+                    <p className="text-sm text-resto-acero italic">Cargando platos...</p>
                   ) : producciones.length === 0 ? (
                     <p className="text-sm text-resto-acero italic">
-                      Todavía no se preparó ningún plato para esta mesa. Hacelo desde el Menú.
+                      {seleccionada.estado === 'OCUPADA'
+                        ? 'Todavía no se preparó ningún plato en esta ocupación. Hacelo desde el Menú.'
+                        : 'Marcá la mesa como Ocupada y prepará platos desde el Menú para verlos acá.'}
                     </p>
                   ) : (
                     <ul className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -552,7 +581,7 @@ export default function MesasPage() {
                         <li key={produccion.id ?? `${produccion.platoNombre}-${produccion.fechaHora}`} className="rounded-xl border border-resto-ciruela/10 bg-resto-manteca/50 px-3 py-2">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-bold truncate">{produccion.platoNombre}</p>
-                            <span className="shrink-0 text-xs font-black text-resto-oliva">x{produccion.cantidad}</span>
+                            <span className="shrink-0 text-xs font-black text-resto-oliva">x{formatearCantidad(produccion.cantidad)}</span>
                           </div>
                           <p className="text-[11px] text-resto-acero mt-0.5">
                             {formatearFecha(produccion.fechaHora)}
@@ -571,7 +600,10 @@ export default function MesasPage() {
 
       {/* MODAL ALTA / EDICIÓN DE MESA */}
       {modal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-resto-ciruela/40 backdrop-blur-sm p-4" role="dialog" aria-modal="true">
+        <Modal
+          ariaLabel={editandoId != null ? 'Editar mesa' : 'Nueva mesa'}
+          onClose={cerrarModal}
+        >
           <form onSubmit={guardarMesa} className="w-full max-w-md rounded-[2rem] bg-white p-6 md:p-8 shadow-xl">
             <h3 className="text-2xl font-black">{editandoId != null ? 'Editar mesa' : 'Nueva mesa'}</h3>
             <p className="text-sm text-resto-acero mt-2">
@@ -641,7 +673,33 @@ export default function MesasPage() {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
+      )}
+
+      {mesaAEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar mesa"
+          mensaje={`¿Eliminar "${mesaAEliminar.nombre}" del mapa? El historial de platos preparados se conserva.`}
+          onCancel={() => setMesaAEliminar(null)}
+          onConfirm={() => {
+            const mesa = mesaAEliminar;
+            setMesaAEliminar(null);
+            void eliminarMesa(mesa);
+          }}
+        />
+      )}
+
+      {mesaALiberar && (
+        <ConfirmDialog
+          titulo="Liberar mesa"
+          mensaje={`${producciones.length} plato(s) dejarán de mostrarse. El historial de producción se conserva.`}
+          onCancel={() => setMesaALiberar(null)}
+          onConfirm={() => {
+            const { mesa, estado } = mesaALiberar;
+            setMesaALiberar(null);
+            void ejecutarCambioEstado(mesa, estado);
+          }}
+        />
       )}
     </main>
   );

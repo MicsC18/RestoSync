@@ -14,7 +14,8 @@ const config: Config = {
           ciruela: "#3A1124",
           oliva: "#4A5D23",
           dorado: "#E0A96D",
-          acero: "#7393B3",
+          acero: "#54718E",
+          canela: "#A05A1C",
         },
       },
       fontFamily: {

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { apiUrl, authHeaders } from '@/lib/api';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
+import Modal from '@/components/modal';
 
 type Producto = {
   id: number;
@@ -98,7 +99,7 @@ export default function DashboardPage() {
         <div className="text-center">
           <div className="w-10 h-10 mx-auto mb-4 rounded-full border-4 border-resto-oliva/20 border-t-resto-oliva animate-spin" />
 
-          <p className="text-resto-ciruela font-semibold">
+          <p className="text-resto-ciruela font-semibold" role="status">
             Cargando tu cocina...
           </p>
         </div>
@@ -169,7 +170,7 @@ export default function DashboardPage() {
                 ⚠️
               </span>
 
-              <span className="text-xs font-bold text-resto-dorado uppercase tracking-wide">
+              <span className="text-xs font-bold text-resto-canela uppercase tracking-wide">
                 Atención
               </span>
             </div>
@@ -269,7 +270,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/inventario"
-                className="text-sm font-bold text-resto-oliva hover:text-resto-dorado transition-colors"
+                className="text-sm font-bold text-resto-oliva hover:text-resto-canela transition-colors"
               >
                 Ver todo →
               </Link>
@@ -279,7 +280,7 @@ export default function DashboardPage() {
 
             {/* CARGANDO */}
             {loadingProductos && (
-              <div className="py-14 text-center">
+              <div className="py-14 text-center" role="status">
 
                 <div className="w-9 h-9 mx-auto mb-4 rounded-full border-4 border-resto-oliva/20 border-t-resto-oliva animate-spin" />
 
@@ -354,7 +355,7 @@ export default function DashboardPage() {
                         <span
                           className={`text-[10px] font-bold px-2 py-1 rounded-full ${
                             producto.diasRestantes <= 3
-                              ? 'bg-resto-dorado/20 text-resto-dorado'
+                              ? 'bg-resto-dorado/20 text-resto-canela'
                               : 'bg-resto-oliva/10 text-resto-oliva'
                           }`}
                         >
@@ -531,15 +532,12 @@ export default function DashboardPage() {
           MODAL AGREGAR COMPRA
       ========================= */}
       {mostrarAgregar && (
-        <div
-          className="fixed inset-0 z-50 bg-resto-ciruela/60 backdrop-blur-sm flex items-center justify-center p-5"
-          onClick={() => setMostrarAgregar(false)}
+        <Modal
+          ariaLabel="Nueva compra"
+          onClose={() => setMostrarAgregar(false)}
+          closeOnBackdrop
         >
-
-          <div
-            className="w-full max-w-lg rounded-[2rem] bg-resto-manteca p-7 md:p-8 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="w-full max-w-lg rounded-[2rem] bg-resto-manteca p-7 md:p-8 shadow-2xl">
 
             {/* HEADER */}
             <div className="flex items-start justify-between mb-8">
@@ -561,6 +559,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => setMostrarAgregar(false)}
+                aria-label="Cerrar"
                 className="w-10 h-10 rounded-xl border border-resto-ciruela/10 text-resto-ciruela hover:bg-resto-ciruela hover:text-resto-manteca transition-all"
               >
                 ×
@@ -624,8 +623,7 @@ export default function DashboardPage() {
             </div>
 
           </div>
-
-        </div>
+        </Modal>
       )}
 
 

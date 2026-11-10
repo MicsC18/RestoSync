@@ -3,9 +3,21 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { apiUrl, authHeaders } from '@/lib/api';
-import { CATEGORIAS_BASE, iconoParaInsumo } from '@/lib/insumos';
+import { formatearCantidad, redondearCantidad } from '@/lib/numero';
+import {
+  CATEGORIAS_BASE,
+  TIPOS_UNIDAD,
+  UNIDADES_POR_TIPO,
+  normalizarUnidad,
+  tipoDeUnidad,
+  unidadPorDefecto,
+  iconoParaInsumo,
+  type TipoUnidad,
+} from '@/lib/insumos';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
+import Modal from '@/components/modal';
+import ConfirmDialog from '@/components/confirm-dialog';
 
 type Producto = {
   id: number;
@@ -44,7 +56,7 @@ const formVacio: FormularioInsumo = {
   nombre: '',
   categoria: 'Almacén',
   cantidad: '1',
-  unidadMedida: 'Unidades',
+  unidadMedida: 'unidad',
   diasRestantes: '30',
   estado: 'Cerrado',
 };
@@ -73,6 +85,9 @@ export default function InventarioPage() {
   const [form, setForm] = useState<FormularioInsumo>(formVacio);
   const [guardando, setGuardando] = useState(false);
   const [errorModal, setErrorModal] = useState('');
+
+  // Confirmación de eliminación (reemplaza al confirm() nativo).
+  const [productoAEliminar, setProductoAEliminar] = useState<Producto | null>(null);
 
   useEffect(() => {
     if (checking || !token) return;
@@ -105,8 +120,8 @@ export default function InventarioPage() {
             vencimiento: insumo.vencimiento ?? null,
             diasRestantes: insumo.diasRestantes ?? 0,
             estado: insumo.estado === 'Abierto' ? 'Abierto' : 'Cerrado',
-            stock: insumo.cantidad ?? 0,
-            unidad: insumo.unidadMedida || 'Unidades',
+            stock: redondearCantidad(insumo.cantidad),
+            unidad: normalizarUnidad(insumo.unidadMedida),
           })));
         }
       } catch (loadError: unknown) {
@@ -142,6 +157,15 @@ export default function InventarioPage() {
     form.categoria,
   ]));
 
+  // Selector de unidad en dos niveles: la magnitud se deriva de la unidad guardada y
+  // el segundo selector ofrece solo sus unidades de precisión (kg/g/mg, l/ml, unidad).
+  // La actual se mantiene como opción extra si es legacy y aun no migró (no perderla).
+  const tipoUnidadSeleccionado = tipoDeUnidad(form.unidadMedida);
+  const opcionesUnidad = Array.from(new Set([
+    ...UNIDADES_POR_TIPO[tipoUnidadSeleccionado],
+    form.unidadMedida,
+  ])).filter(Boolean);
+
   const productosFiltrados = filtroCategoria === 'Todas'
     ? productosVisibles
     : productosVisibles.filter(p => p.categoria === filtroCategoria);
@@ -158,7 +182,7 @@ export default function InventarioPage() {
     setForm({
       nombre: producto.nombre,
       categoria: producto.categoria,
-      cantidad: String(producto.stock),
+      cantidad: formatearCantidad(producto.stock),
       unidadMedida: producto.unidad,
       diasRestantes: String(Math.max(producto.diasRestantes, 0)),
       estado: producto.estado,
@@ -201,7 +225,7 @@ export default function InventarioPage() {
         nombre,
         categoria: form.categoria.trim() || 'Almacén',
         cantidad,
-        unidadMedida: form.unidadMedida.trim() || 'Unidades',
+        unidadMedida: form.unidadMedida.trim() || 'unidad',
         diasRestantes,
         estado: form.estado,
       };
@@ -231,7 +255,6 @@ export default function InventarioPage() {
 
   const eliminar = async (producto: Producto) => {
     if (!token) return;
-    if (!confirm(`¿Eliminar "${producto.nombre}" del inventario? Se borran también sus lotes.`)) return;
 
     setError('');
     try {
@@ -252,7 +275,7 @@ export default function InventarioPage() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -274,7 +297,7 @@ export default function InventarioPage() {
         {/* ENCABEZADO */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-dorado text-xs font-bold uppercase tracking-wider mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-canela text-xs font-bold uppercase tracking-wider mb-4">
               <span className="w-2 h-2 rounded-full bg-resto-dorado" />
               Gestión total
             </div>
@@ -330,8 +353,8 @@ export default function InventarioPage() {
               title={mostrarAgotados ? 'Ocultar los insumos sin stock' : 'Mostrar los insumos que quedaron en cero'}
               className={`ml-auto px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${
                 mostrarAgotados
-                  ? 'bg-resto-dorado/20 border-resto-dorado/40 text-resto-dorado'
-                  : 'bg-white border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-dorado'
+                  ? 'bg-resto-dorado/20 border-resto-dorado/40 text-resto-canela'
+                  : 'bg-white border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-canela'
               }`}
             >
               {mostrarAgotados ? 'Ocultar agotados' : `Agotados (${agotados.length})`}
@@ -342,7 +365,7 @@ export default function InventarioPage() {
         {/* TABLA DE INVENTARIO */}
         <div className="bg-white rounded-[2rem] border border-resto-ciruela/10 overflow-hidden shadow-sm">
           {loading ? (
-            <div className="py-20 text-center">
+            <div className="py-20 text-center" role="status">
               <div className="w-10 h-10 mx-auto mb-4 rounded-full border-4 border-resto-oliva/20 border-t-resto-oliva animate-spin" />
               <p className="text-resto-acero font-semibold">Cargando tu almacén...</p>
             </div>
@@ -385,7 +408,7 @@ export default function InventarioPage() {
                       </td>
                       <td className="p-5">
                         <p className="font-black text-lg">
-                          {prod.stock} <span className="text-sm font-semibold text-resto-acero">{prod.unidad}</span>
+                          {formatearCantidad(prod.stock)} <span className="text-sm font-semibold text-resto-acero">{prod.unidad}</span>
                         </p>
                       </td>
                       <td className="p-5">
@@ -396,7 +419,7 @@ export default function InventarioPage() {
                             </span>
                           ) : (
                             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                              prod.diasRestantes <= 3 ? 'bg-resto-dorado/20 text-resto-dorado' : 'bg-resto-oliva/10 text-resto-oliva'
+                              prod.diasRestantes <= 3 ? 'bg-resto-dorado/20 text-resto-canela' : 'bg-resto-oliva/10 text-resto-oliva'
                             }`}>
                               {prod.diasRestantes < 0 ? 'Vencido' : `En ${prod.diasRestantes} días`}
                             </span>
@@ -426,10 +449,10 @@ export default function InventarioPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void eliminar(prod)}
+                          onClick={() => setProductoAEliminar(prod)}
                           title={`Eliminar ${prod.nombre}`}
                           aria-label={`Eliminar ${prod.nombre}`}
-                          className="ml-2 w-9 h-9 rounded-lg border border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-dorado transition-colors"
+                          className="ml-2 w-9 h-9 rounded-lg border border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-canela transition-colors"
                         >
                           🗑
                         </button>
@@ -453,11 +476,9 @@ export default function InventarioPage() {
 
       {/* MODAL ALTA / EDICIÓN */}
       {modal && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-resto-ciruela/40 backdrop-blur-sm p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={modal === 'editar' ? 'Corregir insumo' : 'Carga manual de insumo'}
+        <Modal
+          ariaLabel={modal === 'editar' ? 'Corregir insumo' : 'Carga manual de insumo'}
+          onClose={cerrarModal}
         >
           <form
             onSubmit={guardar}
@@ -509,16 +530,33 @@ export default function InventarioPage() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="insumoUnidad" className="block text-sm font-semibold mb-1.5">Unidad</label>
-                  <input
-                    id="insumoUnidad"
-                    value={form.unidadMedida}
-                    onChange={(e) => setForm((f) => ({ ...f, unidadMedida: e.target.value }))}
-                    className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-resto-oliva"
-                  />
+                  <label htmlFor="insumoTipoUnidad" className="block text-sm font-semibold mb-1.5">Tipo de medida</label>
+                  <select
+                    id="insumoTipoUnidad"
+                    value={tipoUnidadSeleccionado}
+                    onChange={(e) => setForm((f) => ({ ...f, unidadMedida: unidadPorDefecto(e.target.value as TipoUnidad) }))}
+                    className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                  >
+                    {TIPOS_UNIDAD.map((tipo) => (
+                      <option key={tipo} value={tipo}>{tipo}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="insumoUnidad" className="block text-sm font-semibold mb-1.5">Unidad</label>
+                  <select
+                    id="insumoUnidad"
+                    value={form.unidadMedida}
+                    onChange={(e) => setForm((f) => ({ ...f, unidadMedida: e.target.value }))}
+                    className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                  >
+                    {opcionesUnidad.map((unidad) => (
+                      <option key={unidad} value={unidad}>{unidad}</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label htmlFor="insumoCantidad" className="block text-sm font-semibold mb-1.5">Cantidad</label>
                   <input
@@ -545,18 +583,18 @@ export default function InventarioPage() {
                     className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-resto-oliva"
                   />
                 </div>
-              </div>
-              <div>
-                <label htmlFor="insumoEstado" className="block text-sm font-semibold mb-1.5">Estado</label>
-                <select
-                  id="insumoEstado"
-                  value={form.estado}
-                  onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value as FormularioInsumo['estado'] }))}
-                  className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
-                >
-                  <option value="Cerrado">Cerrado</option>
-                  <option value="Abierto">Abierto</option>
-                </select>
+                <div>
+                  <label htmlFor="insumoEstado" className="block text-sm font-semibold mb-1.5">Estado</label>
+                  <select
+                    id="insumoEstado"
+                    value={form.estado}
+                    onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value as FormularioInsumo['estado'] }))}
+                    className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                  >
+                    <option value="Cerrado">Cerrado</option>
+                    <option value="Abierto">Abierto</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -577,7 +615,20 @@ export default function InventarioPage() {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
+      )}
+
+      {productoAEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar insumo"
+          mensaje={`¿Eliminar "${productoAEliminar.nombre}" del inventario? Se borran también sus lotes.`}
+          onCancel={() => setProductoAEliminar(null)}
+          onConfirm={() => {
+            const producto = productoAEliminar;
+            setProductoAEliminar(null);
+            void eliminar(producto);
+          }}
+        />
       )}
 
       {/* FOOTER */}

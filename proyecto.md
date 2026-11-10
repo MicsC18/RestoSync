@@ -31,7 +31,7 @@ El ecosistema de RestoSync está dividido en tres módulos principales y una bas
 - **Escáner Visual de Tickets Multimodal**: Ya no se requiere carga manual. El usuario toma una foto (o sube un PDF) del ticket de compra de sus proveedores. La IA identifica los productos, los categoriza lógicamente, les asigna un emoji y calcula sus días de vida útil.
 - **Dictado de Compras por Voz**: Interfaz preparada para que el usuario dicte los insumos verbalmente.
 
-### 📊 Inteligencia de Negocio y Analítica (`/analitica`)
+### 📊 Inteligencia de Negocio y Analítica (`/analitica` + `/prediccion`)
 - **Reporte de Mermas**: Cálculo del dinero perdido por productos vencidos en almacén.
 - **Distribución de Gastos**: Visualización de los gastos mensuales divididos por categorías (Lácteos, Carnes, Bebidas, etc).
 - **Asistente de Compras IA (BETA)**: Motor predictivo que analizará el ritmo histórico de consumo y recomendará qué comprar antes de los fines de semana para evitar quiebres de stock.
@@ -52,6 +52,9 @@ Durante la sesión de hoy, se implementaron mejoras significativas que elevaron 
    - Implementación de la vista `/analitica` con dashboards de negocio y la estructura base del motor de recomendaciones predictivas.
 4. **Pruebas Unitarias (Testing)**:
    - Se implementaron y corrieron exitosamente tests con `pytest` en el servidor de IA para asegurar que las conexiones con Gemini y los aislamientos de errores funcionen a la perfección.
-5. **Gestión Segura de API Key (Opciones)**:
-   - Se creó la pantalla `/opciones` que permite a los usuarios configurar su propia Google Gemini API Key de forma local.
-   - Implementación de seguridad visual "write-only" (solo escritura) para evitar que la clave sea leída, expuesta o robada una vez que fue almacenada en el sistema.
+5. **Gestión Segura de API Key**:
+   - *(Actualización noviembre 2026: la pantalla `/opciones` creada en esta fecha fue reemplazada
+     por `/sistema`, que solo muestra el estado de los servicios y de la sesión.)*
+   - La Google Gemini API Key ya no se guarda en el navegador: vive únicamente en el `.env` del
+     microservicio `restosync-ia`, de forma que la clave nunca se expone ni puede ser leída
+     o robada desde el cliente (objetivo "write-only" cumplido por supresión del almacenamiento local).

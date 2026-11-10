@@ -3,6 +3,7 @@ package com.restosync.core.repository
 import com.restosync.core.model.Produccion
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
+import java.time.LocalDateTime
 
 @Repository
 interface ProduccionRepository : JpaRepository<Produccion, Long> {
@@ -12,4 +13,10 @@ interface ProduccionRepository : JpaRepository<Produccion, Long> {
     fun findByMesaId(mesaId: Long): List<Produccion>
     fun countByUsuarioId(usuarioId: Long): Long
     fun countByLocalId(localId: Long): Long
+    /** Producciones de la ventana histórica del local para la analítica (§1.1 del Plan-IA). */
+    fun findByLocalIdAndFechaHoraBetween(
+        localId: Long,
+        desde: LocalDateTime,
+        hasta: LocalDateTime
+    ): List<Produccion>
 }

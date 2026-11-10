@@ -2,11 +2,17 @@ import io
 import json
 import os
 import traceback
+from datetime import date, datetime
+from typing import List, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types, errors
+from pydantic import BaseModel
+
+from prediccion import calcular_prediccion
+from recomendaciones import generar_insights, insights_por_reglas
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
@@ -61,6 +67,132 @@ def listar_modelos():
     modelos = [m.name for m in client.models.list()]
     return {"modelos_disponibles": modelos}
 
+
+# ---------- Modelos del monitor predictivo (espejo de Plan-IA §1.1 y §1.2) ----------
+
+class LoteHistorial(BaseModel):
+    cantidad: float
+    fechaVencimiento: date
+
+class InsumoHistorial(BaseModel):
+    id: int
+    nombre: str
+    categoria: Optional[str] = None
+    icono: Optional[str] = None
+    unidadMedida: str
+    stockActual: float
+    stockMinimo: Optional[float] = None
+    lotes: List[LoteHistorial] = []
+
+class SerieDiaria(BaseModel):
+    fecha: date
+    insumoId: int
+    consumo: float
+    entradas: float
+    mermas: float
+
+class ProduccionDiaria(BaseModel):
+    fecha: date
+    platoNombre: str
+    cantidad: float
+
+class Historial(BaseModel):
+    localId: int
+    dias: int
+    desde: date
+    hasta: date
+    insumos: List[InsumoHistorial] = []
+    series: List[SerieDiaria] = []
+    producciones: List[ProduccionDiaria] = []
+
+class PrediccionRequest(BaseModel):
+    historial: Historial
+    horizonteDias: int = 7
+
+class PuntoProyeccion(BaseModel):
+    fecha: date
+    cantidad: float
+
+class DemandaItem(BaseModel):
+    insumoId: int
+    nombre: str
+    icono: Optional[str] = None
+    unidadMedida: str
+    consumoDiarioBase: float
+    proyeccion: List[PuntoProyeccion]
+    totalProyectado: float
+    stockActual: float
+    coberturaDias: Optional[float] = None
+    fechaQuiebre: Optional[date] = None
+
+class MermaItem(BaseModel):
+    insumoId: int
+    nombre: str
+    icono: Optional[str] = None
+    unidadMedida: str
+    cantidadEnRiesgo: float
+    fechaVencimiento: date
+
+class CompraItem(BaseModel):
+    insumoId: int
+    nombre: str
+    icono: Optional[str] = None
+    unidadMedida: str
+    cantidadSugerida: float
+    prioridad: str
+    motivo: str
+
+class Recomendacion(BaseModel):
+    titulo: str
+    detalle: str
+
+class Insights(BaseModel):
+    fuente: str
+    recomendaciones: List[Recomendacion]
+
+class PrediccionResponse(BaseModel):
+    horizonteDias: int
+    generadoEn: datetime
+    datosInsuficientes: bool
+    demanda: List[DemandaItem]
+    mermas: List[MermaItem]
+    compras: List[CompraItem]
+    insights: Insights
+
+
+HORIZONTE_MINIMO = 1
+HORIZONTE_MAXIMO = 30
+
+
+@app.post("/api/v1/ia/prediccion-demanda", response_model=PrediccionResponse)
+def prediccion_demanda(request: PrediccionRequest):
+    """Monitor predictivo: pandas calcula los números; Gemini solo redacta insights (§0.2, §1.2)."""
+    horizonte = max(HORIZONTE_MINIMO, min(HORIZONTE_MAXIMO, request.horizonteDias))
+    historial_dict = request.historial.model_dump(mode="json")
+    resumen = calcular_prediccion(historial_dict, horizonte)
+    try:
+        insights = generar_insights(resumen, client)
+    except Exception as e:
+        # El endpoint nunca devuelve 5xx por una falla de Gemini: cae a reglas.
+        traceback.print_exc()
+        try:
+            recomendaciones = insights_por_reglas(resumen)
+        except Exception:
+            recomendaciones = [{
+                "titulo": "Análisis disponible sin IA",
+                "detalle": "Revisá la lista de compras sugeridas generada por las reglas de consumo.",
+            }]
+        insights = {"fuente": "reglas", "recomendaciones": recomendaciones}
+    return PrediccionResponse(
+        horizonteDias=horizonte,
+        generadoEn=datetime.now(),
+        datosInsuficientes=resumen["datosInsuficientes"],
+        demanda=resumen["demanda"],
+        mermas=resumen["mermas"],
+        compras=resumen["compras"],
+        insights=insights,
+    )
+
 @app.post("/api/v1/ia/escanear-ticket")
 async def escanear_ticket(file: UploadFile = File(...)):
     try:
@@ -90,6 +222,7 @@ async def escanear_ticket(file: UploadFile = File(...)):
         - "categoria": Categoría lógica (ej. Lácteos, Carnes, Frutas y verduras, Almacén, Bebidas, Panadería).
         - "icono": Un emoji representativo del producto.
         - "cantidad": Número entero con la cantidad adquirida.
+        - "unidadMedida": La unidad del documento en notación profesional: "kg", "g" o "mg" para peso, "l" o "ml" para volumen, "unidad" para contables (botellas, cajas, latas). No inventes otras.
         - "diasRestantes": Días estimados de vida útil restantes a partir de la fecha actual, basándote en la fecha de vencimiento del documento o estimándola según el tipo de alimento si no la trae explícita.
         """
 
@@ -133,9 +266,10 @@ async def escanear_ticket(file: UploadFile = File(...)):
         resultado_json = json.loads(response.text)
         items = resultado_json.get("itemsEncontrados", [])
 
-        # Asignación automática del estado inicial predeterminado
+        # Asignación automática del estado inicial y defaults conservadores
         for item in items:
             item["estado"] = "Cerrado"
+            item.setdefault("unidadMedida", "unidad")
 
         return {
             "mensaje": "Documento procesado inteligentemente por Google Gemini",
@@ -155,4 +289,124 @@ async def escanear_ticket(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=500,
             detail=f"Error procesando con Gemini: {str(e)}"
+        )
+
+
+# ---------- Dictado por voz → insumos (Plan-Mesas-Dictado §2.3) ----------
+
+class DictarRequest(BaseModel):
+    texto: str
+
+@app.post("/api/v1/ia/dictar-insumos")
+def dictar_insumos(request: DictarRequest):
+    """Transforma el texto de un dictado de compra en ítems de insumos con Gemini.
+
+    Mismo contrato que escanear-ticket más `unidadMedida`. A diferencia del monitor
+    predictivo, acá SÍ se devuelve 5xx cuando el servicio no responde: la atenuación
+    ante fallas vive en el fallback local del front (lib/dictado.ts).
+    """
+    es_mock = hasattr(getattr(client, "models", None), "generate_content") and hasattr(
+        client.models.generate_content, "assert_called"
+    )
+    if not hay_api_key_valida() and not es_mock:
+        raise HTTPException(
+            status_code=503,
+            detail="El microservicio de IA no tiene configurada una clave válida en GEMINI_API_KEY dentro de su archivo .env. "
+                   "Completá tu clave en restosync-ia/.env para procesar dictados reales con IA."
+        )
+
+    texto = request.texto.strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="El texto del dictado está vacío.")
+
+    try:
+        prompt_instrucciones = """
+        Eres un asistente experto en gestión de inventarios gastronómicos.
+        A continuación recibís el texto de un dictado por voz (español de Argentina) de la
+        compra de un restaurante. Extraé cada producto mencionado y devolvé un JSON estricto
+        con una lista llamada "itemsEncontrados".
+        Cada objeto de la lista debe tener exactamente estas claves:
+        - "nombre": Nombre claro del producto, sin la cantidad ni la unidad (ej. "Tomates" y no "dos kilos de tomates").
+        - "categoria": Categoría lógica (ej. Lácteos, Carnes, Frutas y verduras, Almacén, Bebidas, Panadería, Limpieza).
+        - "icono": Un emoji representativo del producto.
+        - "cantidad": Número con la cantidad adquirida (aceptá decimales: "medio kilo" es 0.5).
+        - "unidadMedida": La unidad del texto en notación profesional: "kg", "g" o "mg" para peso, "l" o "ml" para volumen, "unidad" para contables; usá "unidad" si el texto no indica ninguna. Convertí las expresiones informales: "una docena" es 12 con unidad "unidad", "dos paquetes/latas/atados" es 2 con unidad "unidad". No inventes otras.
+        - "diasRestantes": Días estimados de vida útil restantes según el tipo de alimento (perecederos pocos días, secos y congelados muchos).
+        Si el mismo producto aparece varias veces, sumalo en un único ítem.
+        Si del texto no se puede extraer ningún producto, devolvé la lista vacía.
+        """
+
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json"
+        )
+
+        # Cadena de fallback con los modelos válidos activos en la cuenta (mismo patrón de escanear-ticket).
+        modelos_candidatos = [
+            'gemini-3.5-flash-lite',
+            'gemini-3.8-flash',
+            'gemini-flash-latest',
+            'gemini-3.7-flash',
+            'gemini-3.5-flash'
+        ]
+
+        response = None
+        ultimo_error = None
+
+        for modelo in modelos_candidatos:
+            try:
+                print(f"Probando modelo: {modelo}...")
+                response = client.models.generate_content(
+                    model=modelo,
+                    contents=[prompt_instrucciones, texto],
+                    config=config
+                )
+                if response and response.text:
+                    print(f"¡Éxito con el modelo {modelo}!")
+                    break
+            except Exception as err:
+                ultimo_error = err
+                print(f"El modelo {modelo} no pudo procesar ({err}). Intentando siguiente...")
+
+        if not response or not response.text:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Servicio de IA no disponible temporalmente. Último error: {str(ultimo_error)}"
+            )
+
+        resultado_json = json.loads(response.text)
+        items = resultado_json.get("itemsEncontrados", [])
+
+        # Normalización defensiva: el contrato del front espera estas claves sí o sí.
+        items = [
+            {
+                "nombre": (item.get("nombre") or "").strip(),
+                "categoria": item.get("categoria") or "Almacén",
+                "icono": item.get("icono") or "🛒",
+                "cantidad": item.get("cantidad") or 1,
+                "unidadMedida": item.get("unidadMedida") or "unidad",
+                "diasRestantes": item.get("diasRestantes") or 30,
+                "estado": "Cerrado",
+            }
+            for item in items
+            if isinstance(item, dict) and item.get("nombre")
+        ]
+
+        return {
+            "mensaje": "Dictado procesado inteligentemente por Google Gemini",
+            "texto": texto,
+            "itemsEncontrados": items
+        }
+
+    except HTTPException as http_exc:
+        raise http_exc
+    except errors.ServerError:
+        raise HTTPException(
+            status_code=503,
+            detail="El servicio de IA de Google está temporalmente saturado. Reintentá en unos segundos."
+        )
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error procesando el dictado con Gemini: {str(e)}"
         )

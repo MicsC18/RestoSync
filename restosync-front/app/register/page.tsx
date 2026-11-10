@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/lib/api';
 import { guardarSesionTrasAuth } from '@/lib/use-auth-session';
@@ -86,7 +87,8 @@ export default function RegisterPage() {
               onChange={(e) => setNombreRestaurante(e.target.value)}
               placeholder="Ej: La Esquina"
               required
-              className="w-full rounded-lg border border-gray-300 px-4 py-3
+              autoComplete="organization"
+              className="w-full rounded-lg border border-resto-acero/20 px-4 py-3
                          text-resto-ciruela
                          focus:outline-none focus:ring-2 focus:ring-resto-oliva
                          focus:border-resto-oliva"
@@ -109,7 +111,8 @@ export default function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tuemail@gmail.com"
               required
-              className="w-full rounded-lg border border-gray-300 px-4 py-3
+              autoComplete="email"
+              className="w-full rounded-lg border border-resto-acero/20 px-4 py-3
                          text-resto-ciruela
                          focus:outline-none focus:ring-2 focus:ring-resto-oliva
                          focus:border-resto-oliva"
@@ -133,7 +136,8 @@ export default function RegisterPage() {
               placeholder="********"
               required
               minLength={6}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3
+              autoComplete="new-password"
+              className="w-full rounded-lg border border-resto-acero/20 px-4 py-3
                          text-resto-ciruela
                          focus:outline-none focus:ring-2 focus:ring-resto-oliva
                          focus:border-resto-oliva"
@@ -146,7 +150,7 @@ export default function RegisterPage() {
 
           {/* Error */}
           {error && (
-            <div className="rounded-lg bg-red-100 border border-red-200 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-lg bg-red-100 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert">
               {error}
             </div>
           )}
@@ -155,7 +159,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-resto-oliva text-white py-3 rounded-lg
+            className="w-full bg-resto-oliva text-resto-manteca py-3 rounded-lg
                        font-semibold transition duration-200
                        hover:bg-resto-dorado
                        disabled:opacity-50
@@ -170,12 +174,12 @@ export default function RegisterPage() {
         <div className="text-center mt-6">
           <p className="text-sm text-resto-acero">
             ¿Ya tenés una cuenta?{' '}
-            <a
+            <Link
               href="/login"
-              className="font-semibold text-resto-oliva hover:text-resto-dorado transition"
+              className="font-semibold text-resto-oliva hover:text-resto-canela transition"
             >
               Iniciá sesión
-            </a>
+            </Link>
           </p>
         </div>
 

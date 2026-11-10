@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuthSession } from '@/lib/use-auth-session';
 import { apiUrl, authHeaders } from '@/lib/api';
+import { formatearCantidad } from '@/lib/numero';
 import AppHeader from '@/components/app-header';
 
 type Insumo = {
@@ -36,9 +38,9 @@ const COLORES = [
   { barra: 'bg-resto-acero', punto: 'bg-resto-acero' },
 ];
 
-function cantidadLegible(valor: number) {
-  return Number.isInteger(valor) ? String(valor) : valor.toFixed(2).replace(/\.?0+$/, '');
-}
+// `cantidadLegible` es el formateador compartido (`lib/numero`); se lo re-exporta con el
+// nombre que ya usaban las vistas de esta pantalla.
+const cantidadLegible = formatearCantidad;
 
 export default function AnaliticaPage() {
   const { token, checking, logout, sesion, localActivoId, setLocalActivoId } = useAuthSession();
@@ -90,7 +92,7 @@ export default function AnaliticaPage() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -139,28 +141,36 @@ export default function AnaliticaPage() {
 
       <section className="max-w-7xl mx-auto px-6 lg:px-10 py-10">
         {/* ENCABEZADO */}
-        <div className="mb-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-dorado text-xs font-bold uppercase tracking-wider mb-4">
-            <span className="w-2 h-2 rounded-full bg-resto-dorado" />
-            Resumen del local
+        <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-canela text-xs font-bold uppercase tracking-wider mb-4">
+              <span className="w-2 h-2 rounded-full bg-resto-dorado" />
+              Resumen del local
+            </div>
+            <h2 className="text-4xl md:text-5xl font-black leading-tight">
+              Analítica de tu <span className="text-resto-canela">operación.</span>
+            </h2>
+            <p className="mt-4 text-resto-acero text-lg leading-relaxed">
+              Mirá el estado real de tu inventario, tu menú y tus mesas. Descubrí qué está por vencer
+              y qué conviene reponer antes de que se agote.
+            </p>
           </div>
-          <h2 className="text-4xl md:text-5xl font-black leading-tight">
-            Analítica de tu <span className="text-resto-dorado">operación.</span>
-          </h2>
-          <p className="mt-4 text-resto-acero text-lg leading-relaxed">
-            Mirá el estado real de tu inventario, tu menú y tus mesas. Descubrí qué está por vencer
-            y qué conviene reponer antes de que se agote.
-          </p>
+          <Link
+            href="/prediccion"
+            className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-resto-oliva text-resto-manteca text-sm font-bold hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resto-oliva"
+          >
+            Ver IA Predictiva →
+          </Link>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-2xl border border-resto-ciruela/20 bg-resto-ciruela/5 px-5 py-4 text-sm font-bold">
+          <div className="mb-6 rounded-2xl border border-resto-ciruela/20 bg-resto-ciruela/5 px-5 py-4 text-sm font-bold" role="alert">
             {error}
           </div>
         )}
 
         {loading ? (
-          <div className="py-32 text-center">
+          <div className="py-32 text-center" role="status">
             <div className="w-12 h-12 mx-auto mb-6 rounded-full border-4 border-resto-dorado/20 border-t-resto-dorado animate-spin" />
             <p className="text-resto-ciruela text-lg font-bold">Calculando el resumen del local...</p>
           </div>

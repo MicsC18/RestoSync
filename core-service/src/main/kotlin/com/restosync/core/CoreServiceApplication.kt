@@ -5,21 +5,28 @@ import com.restosync.core.model.Insumo
 import com.restosync.core.model.Local
 import com.restosync.core.model.Lote
 import com.restosync.core.model.Mesa
+import com.restosync.core.model.MovimientoStock
 import com.restosync.core.model.Plato
+import com.restosync.core.model.Produccion
 import com.restosync.core.model.RecetaInsumo
 import com.restosync.core.model.Restaurante
 import com.restosync.core.model.RolUsuario
+import com.restosync.core.model.TipoMovimiento
 import com.restosync.core.model.Usuario
 import com.restosync.core.repository.InsumoRepository
 import com.restosync.core.repository.LocalRepository
 import com.restosync.core.repository.LoteRepository
 import com.restosync.core.repository.MesaRepository
+import com.restosync.core.repository.MovimientoStockRepository
 import com.restosync.core.repository.PlatoRepository
+import com.restosync.core.repository.ProduccionRepository
 import com.restosync.core.repository.RecetaInsumoRepository
 import com.restosync.core.repository.RestauranteRepository
 import com.restosync.core.repository.UsuarioRepository
 import com.restosync.core.service.InventarioService
+import com.restosync.core.util.redondear
 import jakarta.persistence.EntityManager
+import kotlin.math.roundToInt
 import org.springframework.boot.CommandLineRunner
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -27,6 +34,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 @SpringBootApplication
 class CoreServiceApplication {
@@ -41,6 +49,8 @@ class CoreServiceApplication {
         platoRepo: PlatoRepository,
         recetaRepo: RecetaInsumoRepository,
         mesaRepo: MesaRepository,
+        produccionRepo: ProduccionRepository,
+        movimientoRepo: MovimientoStockRepository,
         passwordEncoder: PasswordEncoder,
         entityManager: EntityManager,
         transactionTemplate: TransactionTemplate,
@@ -50,6 +60,7 @@ class CoreServiceApplication {
             transactionTemplate.executeWithoutResult {
                 migrarRolesNulos(entityManager)
                 migrarInsumosDeRestauranteALocal(entityManager)
+                sincronizarSecuencias(entityManager)
 
                 val restaurante = restauranteRepo.findAll().firstOrNull()
                     ?: restauranteRepo.save(Restaurante(nombre = "La Farola"))
@@ -78,14 +89,33 @@ class CoreServiceApplication {
 
                 // Asigna local a insumos huérfanos y reintenta migración de columna vieja.
                 migrarInsumosDeRestauranteALocal(entityManager)
+                // Filas con local_id de otro restaurante (insumos que "aparecen" en un local
+                // al que no pertenecen) → devolverlas al local correcto de su restaurante.
+                repararInsumosFueraDeSuRestaurante(entityManager)
                 insumoRepo.findByLocalIsNull().forEach { insumo ->
-                    insumo.local = localPrincipal
+                    // Un huérfano va al primer local de SU restaurante; localPrincipal solo
+                    // como último recurso (antes se tiraban todos ahí y cruzaban marcas).
+                    insumo.local = insumo.restaurante?.id
+                        ?.let { localRepo.findByRestauranteId(it).firstOrNull() }
+                        ?: localPrincipal
                     insumoRepo.save(insumo)
                 }
                 // Quita el NOT NULL / columna obsoleta recién cuando ya hay locales.
                 liberarColumnaRestauranteEnInsumos(entityManager)
                 // Movimientos ahora cuelgan de insumo/lote; la columna legacy alimento_id no debe bloquear inserts.
                 liberarColumnaAlimentoEnMovimientos(entityManager)
+                // Sanear el ruido de `Double` que se persistió antes de unificar el redondeo en
+                // el core (valores tipo 9.200000000000003 en stock y cantidades). Idempotente.
+                sanearRuidoPuntoFlotante(entityManager)
+                // Unidades informales (Kilos, Docenas, Latas...) → notación profesional
+                // (kg/g/mg, l/ml, unidad). Idempotente: solo toca filas con valor legacy.
+                normalizarUnidadesMedida(entityManager)
+                // Plan-Mesas-Dictado §1.4: columnas nuevas nullable con ddl-auto=update llegan null.
+                // Las mesas ya OCUPADA anteriores a `fechaOcupacion` abren sesión ahora (idempotente:
+                // solo toca las que tienen la marca nula, los reinicios no pisan sesiones activas).
+                mesaRepo.findAll()
+                    .filter { it.estado == EstadoMesa.OCUPADA && it.fechaOcupacion == null }
+                    .forEach { mesaRepo.save(it.copy(fechaOcupacion = LocalDateTime.now())) }
                 // Fase 2 (§4.5.7): insumos legacy sin lotes → lote inicial; agregados frescos en cada arranque.
                 inventarioService.migrarLotesLegacy()
                 // Filas viejas con lotes de varios vencimientos → una fila visible por vencimiento (§4.5).
@@ -113,6 +143,12 @@ class CoreServiceApplication {
                     sembrarDatosDemo(
                         restaurante, localPrincipal, usuarioRepo, localRepo, insumoRepo,
                         loteRepo, platoRepo, recetaRepo, mesaRepo, passwordEncoder, inventarioService
+                    )
+                    // Plan-IA §2.3: historial sintético de 90 días para que el monitor
+                    // predictivo tenga datos desde el primer arranque.
+                    sembrarHistorialDemo(
+                        localPrincipal, usuarioRepo, insumoRepo, platoRepo, recetaRepo, mesaRepo,
+                        produccionRepo, movimientoRepo
                     )
                 }
             }
@@ -172,12 +208,12 @@ class CoreServiceApplication {
                 val unidad: String, val cantidad: Double, val minimo: Double, val venceEnDias: Long
             )
             val demos = listOf(
-                DemoInsumo("Pechuga de pollo", "Carnes", "🍗", "Kg", 10.0, 3.0, 5),
-                DemoInsumo("Pan rallado", "Almacén", "🍞", "Kg", 5.0, 1.0, 180),
-                DemoInsumo("Huevo", "Lácteos", "🥚", "Unidades", 24.0, 6.0, 12),
-                DemoInsumo("Aceite de oliva", "Almacén", "🫒", "Litros", 8.0, 2.0, 365),
-                DemoInsumo("Lechuga", "Frutas y verduras", "🥬", "Kg", 4.0, 1.0, 3),
-                DemoInsumo("Papa", "Frutas y verduras", "🥔", "Kg", 15.0, 5.0, 10)
+                DemoInsumo("Pechuga de pollo", "Carnes", "🍗", "kg", 10.0, 3.0, 5),
+                DemoInsumo("Pan rallado", "Almacén", "🍞", "kg", 5.0, 1.0, 180),
+                DemoInsumo("Huevo", "Lácteos", "🥚", "unidad", 24.0, 6.0, 12),
+                DemoInsumo("Aceite de oliva", "Almacén", "🫒", "l", 8.0, 2.0, 365),
+                DemoInsumo("Lechuga", "Frutas y verduras", "🥬", "kg", 4.0, 1.0, 3),
+                DemoInsumo("Papa", "Frutas y verduras", "🥔", "kg", 15.0, 5.0, 10)
             )
             for (demo in demos) {
                 val insumo = insumoRepo.save(
@@ -271,6 +307,233 @@ class CoreServiceApplication {
         }
     }
 
+    /**
+     * Seed histórico sintético (Plan-IA §2.3): 90 días hacia atrás de producciones y
+     * movimientos en el local principal de "La Farola", con patrón semanal determinístico
+     * (viernes y sábado ×1.6, domingo ×1.3, resto ×1.0) y variación pseudoaleatoria con
+     * semilla fija `Random(42)` para que sea reproducible entre arranques.
+     *
+     * IMPORTANTE: es solo auditoría histórica. **No modifica** `insumo.cantidad` ni los
+     * lotes actuales: el stock visible sigue siendo el real del demo.
+     *
+     * Idempotencia: si ya existe algún movimiento con `motivo = "Seed histórico demo"`
+     * en el local, no hace nada (los reinicios nunca duplican).
+     */
+    private fun sembrarHistorialDemo(
+        local: Local,
+        usuarioRepo: UsuarioRepository,
+        insumoRepo: InsumoRepository,
+        platoRepo: PlatoRepository,
+        recetaRepo: RecetaInsumoRepository,
+        mesaRepo: MesaRepository,
+        produccionRepo: ProduccionRepository,
+        movimientoRepo: MovimientoStockRepository
+    ) {
+        val motivoSeed = "Seed histórico demo"
+        if (movimientoRepo.existsByLocalIdAndMotivo(local.id, motivoSeed)) return
+
+        val admin = usuarioRepo.findByEmail("admin@lafarola.com").orElse(null) ?: return
+        val mesas = mesaRepo.findByLocalIdOrderByNombreAsc(local.id)
+
+        // Solo platos con receta completa; si falta alguno, se saltea (criterio del seed actual).
+        data class PlatoReceta(val plato: Plato, val lineas: List<RecetaInsumo>)
+        val platos = platoRepo.findByLocalIdOrderByNombreAsc(local.id)
+            .filter { it.activo }
+            .map { plato -> PlatoReceta(plato, recetaRepo.findByPlatoId(plato.id)) }
+            .filter { it.lineas.isNotEmpty() }
+        if (platos.isEmpty()) return
+
+        val random = java.util.Random(42)
+        val hoy = LocalDate.now()
+        val desde = hoy.minusDays(89)
+
+        // Consumo semanal estimado por nombre de insumo (base 3 × línea de receta × 7 días).
+        val consumoSemanalPorNombre: Map<String, Double> = platos
+            .flatMap { pr -> pr.lineas.map { it.insumo!!.nombre to 3.0 * it.cantidad } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, cantidades) -> cantidades.sum() * 7 }
+
+        var dia = desde
+        var indice = 0
+        while (!dia.isAfter(hoy)) {
+            // Factor del día: fines de semana más altos (patrón que la predicción debe ver).
+            val factor = when (dia.dayOfWeek) {
+                java.time.DayOfWeek.FRIDAY, java.time.DayOfWeek.SATURDAY -> 1.6
+                java.time.DayOfWeek.SUNDAY -> 1.3
+                else -> 1.0
+            }
+            val cantidadDia = maxOf(1.0, (3.0 * factor * (1.0 + random.nextDouble() * 0.10)).roundToInt().toDouble())
+
+            for (pr in platos) {
+                produccionRepo.save(
+                    Produccion(
+                        plato = pr.plato,
+                        platoNombre = pr.plato.nombre,
+                        cantidad = cantidadDia,
+                        mesa = mesas.getOrNull(indice % maxOf(mesas.size, 1)),
+                        mesaNombre = mesas.getOrNull(indice % maxOf(mesas.size, 1))?.nombre,
+                        fechaHora = dia.atTime(12, 0),
+                        local = local,
+                        usuario = admin
+                    )
+                )
+                for (linea in pr.lineas) {
+                    val insumo = linea.insumo ?: continue
+                    movimientoRepo.save(
+                        MovimientoStock(
+                            tipo = TipoMovimiento.PRODUCCION,
+                            cantidad = redondear(cantidadDia * linea.cantidad),
+                            fechaHora = dia.atTime(12, 5),
+                            motivo = motivoSeed,
+                            insumo = insumo,
+                            usuario = admin,
+                            local = local
+                        )
+                    )
+                }
+            }
+
+            // Reposición semanal: cada 7 días, una ENTRADA por insumo con el consumo
+            // estimado de la semana. No crea lotes (no toca el stock actual).
+            if (indice % 7 == 0) {
+                for ((nombre, cantidadSemanal) in consumoSemanalPorNombre) {
+                    val insumo = insumoDelLocal(insumoRepo, local, nombre) ?: continue
+                    movimientoRepo.save(
+                        MovimientoStock(
+                            tipo = TipoMovimiento.ENTRADA,
+                            cantidad = redondear(cantidadSemanal),
+                            fechaHora = dia.atTime(9, 0),
+                            motivo = motivoSeed,
+                            insumo = insumo,
+                            usuario = admin,
+                            local = local
+                        )
+                    )
+                }
+            }
+
+            dia = dia.plusDays(1)
+            indice++
+        }
+
+        // Merma de ejemplo hace 10 días (para que el monitor siempre muestre una).
+        val primerNombre = consumoSemanalPorNombre.keys.firstOrNull()
+        val insumoMerma = primerNombre?.let { insumoDelLocal(insumoRepo, local, it) }
+        if (insumoMerma != null) {
+            movimientoRepo.save(
+                MovimientoStock(
+                    tipo = TipoMovimiento.MERMA,
+                    cantidad = 0.5,
+                    fechaHora = hoy.minusDays(10).atTime(18, 0),
+                    motivo = motivoSeed,
+                    insumo = insumoMerma,
+                    usuario = admin,
+                    local = local
+                )
+            )
+        }
+
+        println(">>> Historial demo sembrado: 90 días en ${local.nombre} (no modifica stock actual)")
+    }
+
+    /** Insumo del local por nombre (case-insensitive); la primera fila homónima es suficiente. */
+    private fun insumoDelLocal(insumoRepo: InsumoRepository, local: Local, nombre: String): Insumo? =
+        insumoRepo.findByLocalIdAndNombreIgnoreCase(local.id, nombre).firstOrNull()
+
+    /**
+     * `lotes.cantidad`, `insumos.cantidad`, `movimientos_stock.cantidad` y las cantidades de
+     * receta se escribieron durante mucho tiempo con el resultado crudo de sumas y restas de
+     * `Double`, así que en Neon hay filas con ruido (`9.200000000000003`). Desde que el core
+     * normaliza con `redondear` en cada escritura no se generan más, pero las viejas seguían
+     * visibles. Se acotan a dos decimales **solo donde hay ruido** (`cantidad <> ROUND(...)`),
+     * así la migración es idempotente y no reescribe datos sanos.
+     *
+     * Dos detalles del `UPDATE` en PostgreSQL: el `SET` **no lleva** el nombre de la tabla
+     * (`SET lotes.cantidad = ...` es error de sintaxis) y conviene filtrar primero contra
+     * `information_schema`: un statement que falla aborta la transacción del arranque y el
+     * `try/catch` no alcanza, porque todo lo siguiente del mismo bloque revienta con
+     * "current transaction is aborted".
+     */
+    private fun sanearRuidoPuntoFlotante(entityManager: EntityManager) {
+        val tablas = listOf("lotes", "insumos", "movimientos_stock", "receta_insumos", "producciones")
+        val existente = entityManager.createNativeQuery(
+            "SELECT table_name FROM information_schema.columns " +
+                "WHERE column_name = 'cantidad' AND table_name IN ('" + tablas.joinToString("','") + "')"
+        ).resultList.map { it.toString() }
+        var limpiadas = 0
+        for (tabla in tablas.filter { existente.contains(it) }) {
+            limpiadas += entityManager.createNativeQuery(
+                "UPDATE $tabla SET cantidad = ROUND(cantidad::numeric, 2) " +
+                    "WHERE cantidad IS NOT NULL AND cantidad <> ROUND(cantidad::numeric, 2)"
+            ).executeUpdate()
+        }
+        if (limpiadas > 0) {
+            println(">>> Cantidades limpiadas de ruido de punto flotante: $limpiadas fila(s)")
+        }
+    }
+
+    /**
+     * Las unidades se normalizaron a notación profesional de restaurante: peso (kg/g/mg),
+     * volumen (l/ml) y contables (unidad). Los nombres legibles que se venían guardando
+     * ("Kilos", "Litros", "Unidades") y los de envase informal ("Docenas", "Paquetes",
+     * "Latas", "Atados") se convierten al símbolo actual. La única conversión que altera
+     * la cantidad es Docenas → ×12 (una docena sigue siendo la misma cantidad de producto,
+     * ahora contada en unidades); por eso va primero, sobre valores ya saneados por
+     * `sanearRuidoPuntoFlotante`. Idempotente: el `WHERE ... IN` no vuelve a tocar filas
+     * ya convertidas. Mismo criterio de `information_schema` que arriba: un UPDATE que
+     * falla aborta la transacción del arranque y el resto del bloque cae en cascada.
+     */
+    private fun normalizarUnidadesMedida(entityManager: EntityManager) {
+        val columna = entityManager.createNativeQuery(
+            "SELECT column_name FROM information_schema.columns " +
+                "WHERE table_name = 'insumos' AND column_name IN ('unidad_medida', 'unidadMedida')"
+        ).resultList.firstOrNull()?.toString() ?: return
+
+        val conversiones = listOf(
+            // Con cambio de cantidad primero (solo si la cantidad existe y no es nula).
+            "UPDATE insumos SET cantidad = ROUND((cantidad * 12)::numeric, 2), $columna = 'unidad' " +
+                "WHERE $columna IN ('Docenas','Docena') AND cantidad IS NOT NULL",
+            "UPDATE insumos SET $columna = 'unidad' " +
+                "WHERE $columna IN ('Unidades','Unidad','Latas','Lata','Paquetes','Paquete','Atados','Atado')",
+            "UPDATE insumos SET $columna = 'kg' WHERE $columna IN ('Kilos','Kilo','Kg','KG','Kilogramos')",
+            "UPDATE insumos SET $columna = 'g' WHERE $columna IN ('Gramos','Gramo','Gr','gr')",
+            "UPDATE insumos SET $columna = 'mg' WHERE $columna IN ('Miligramos','Miligramo','Mg')",
+            "UPDATE insumos SET $columna = 'l' WHERE $columna IN ('Litros','Litro','Lt','L')",
+            "UPDATE insumos SET $columna = 'ml' WHERE $columna IN ('Mililitros','Mililitro','ML')",
+        )
+        var convertidas = 0
+        for (sql in conversiones) {
+            convertidas += entityManager.createNativeQuery(sql).executeUpdate()
+        }
+        if (convertidas > 0) {
+            println(">>> Unidades de medida normalizadas a notación profesional: $convertidas insumo(s)")
+        }
+    }
+
+    /**
+     * movimientos_stock y producciones nacieron de migraciones legacy y varios demos
+     * insertaron filas con ids explícitos altos (801, 306, 703...): las secuencias quedan
+     * atrasadas contra el max(id) real y los próximos inserts chocan contra la PK
+     * ("conflicto de ids"). setval alinea todas; innecesario en BD nuevas
+     * (el try/catch por tabla cubre tablas o secuencias inexistentes).
+     */
+    private fun sincronizarSecuencias(entityManager: EntityManager) {
+        val tablas = listOf(
+            "restaurantes", "locales", "insumos", "lotes", "mesas", "platos",
+            "receta_insumos", "usuarios", "movimientos_stock", "producciones"
+        )
+        for (tabla in tablas) {
+            try {
+                entityManager.createNativeQuery(
+                    "SELECT setval(pg_get_serial_sequence('$tabla', 'id'), " +
+                        "(SELECT COALESCE(MAX(id), 1) FROM $tabla))"
+                ).resultList
+            } catch (_: Exception) {
+                // Tabla o secuencia inexistente (primer arranque).
+            }
+        }
+    }
+
     private fun migrarRolesNulos(entityManager: EntityManager) {
         try {
             entityManager.createNativeQuery(
@@ -302,6 +565,53 @@ class CoreServiceApplication {
             ).executeUpdate()
         } catch (_: Exception) {
             // restaurante_id puede no existir si la DB ya está migrada.
+        }
+    }
+
+    /**
+     * Repara insumos "mudados" al local de otro restaurante: filas creadas por la ruta
+     * legacy (o tiradas al local principal cuando estaban huérfanas) quedan con el
+     * restaurante_id de su marca pero un local_id ajeno, y aparecen en el inventario
+     * equivocado. Se devuelven al primer local de su restaurante y los movimientos de
+     * auditoría siguen a su insumo. Idempotente: solo toca filas cruzadas.
+     */
+    private fun repararInsumosFueraDeSuRestaurante(entityManager: EntityManager) {
+        try {
+            val reparados = entityManager.createNativeQuery(
+                """
+                UPDATE insumos i
+                SET local_id = (
+                    SELECT MIN(l2.id) FROM locales l2
+                    WHERE l2.restaurante_id = i.restaurante_id
+                )
+                FROM locales l
+                WHERE i.local_id = l.id
+                  AND i.restaurante_id IS NOT NULL
+                  AND l.restaurante_id <> i.restaurante_id
+                  AND EXISTS (
+                      SELECT 1 FROM locales l2 WHERE l2.restaurante_id = i.restaurante_id
+                  )
+                """.trimIndent()
+            ).executeUpdate()
+            if (reparados > 0) {
+                println(">>> Insumos devueltos a su restaurante: $reparados fila(s)")
+            }
+        } catch (_: Exception) {
+            // Columna o tabla inexistente (DB ya migrada del todo).
+        }
+        try {
+            entityManager.createNativeQuery(
+                """
+                UPDATE movimientos_stock m
+                SET local_id = i.local_id
+                FROM insumos i
+                WHERE m.insumo_id = i.id
+                  AND i.local_id IS NOT NULL
+                  AND m.local_id IS DISTINCT FROM i.local_id
+                """.trimIndent()
+            ).executeUpdate()
+        } catch (_: Exception) {
+            // Columna insumo_id/local_id inexistente en el esquema legacy.
         }
     }
 

@@ -2,8 +2,11 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { apiUrl, authHeaders } from '@/lib/api';
+import { formatearCantidad } from '@/lib/numero';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
+import Modal from '@/components/modal';
+import ConfirmDialog from '@/components/confirm-dialog';
 
 type RecetaLinea = {
   id: number;
@@ -83,6 +86,9 @@ export default function MenuPage() {
   const [nuevaMesa, setNuevaMesa] = useState('');
   const [creandoMesa, setCreandoMesa] = useState(false);
 
+  // Confirmación de eliminación (reemplaza al confirm() nativo).
+  const [platoAEliminar, setPlatoAEliminar] = useState<Plato | null>(null);
+
   const cargarDatos = useCallback(async () => {
     if (!token || localActivoId == null) return;
     setLoading(true);
@@ -134,7 +140,7 @@ export default function MenuPage() {
       precio: plato.precio != null ? String(plato.precio) : '',
       activo: plato.activo,
     });
-    setLineas(plato.ingredientes.map((l) => ({ insumoId: l.insumoId, cantidad: String(l.cantidad) })));
+    setLineas(plato.ingredientes.map((l) => ({ insumoId: l.insumoId, cantidad: formatearCantidad(l.cantidad) })));
     setErrorModal('');
     setModalPlato(true);
   };
@@ -205,7 +211,6 @@ export default function MenuPage() {
 
   const eliminarPlato = async (plato: Plato) => {
     if (!token) return;
-    if (!window.confirm(`¿Eliminar "${plato.nombre}" del menú? Esta acción no se puede deshacer.`)) return;
     try {
       const response = await fetch(apiUrl(`/api/v1/platos/${plato.id}`), {
         method: 'DELETE',
@@ -304,7 +309,7 @@ export default function MenuPage() {
   if (checking || !token) {
     return (
       <main className="min-h-screen bg-resto-manteca flex items-center justify-center text-resto-ciruela">
-        <p>Verificando sesión...</p>
+        <p role="status">Verificando sesión...</p>
       </main>
     );
   }
@@ -324,7 +329,7 @@ export default function MenuPage() {
         {/* ENCABEZADO */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-dorado text-xs font-bold uppercase tracking-wider mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-resto-dorado/10 border border-resto-dorado/20 text-resto-canela text-xs font-bold uppercase tracking-wider mb-4">
               <span className="w-2 h-2 rounded-full bg-resto-dorado" />
               Cocina
             </div>
@@ -360,7 +365,7 @@ export default function MenuPage() {
 
         {/* LISTADO DE PLATOS */}
         {loading ? (
-          <div className="py-20 text-center">
+          <div className="py-20 text-center" role="status">
             <div className="w-10 h-10 mx-auto mb-4 rounded-full border-4 border-resto-oliva/20 border-t-resto-oliva animate-spin" />
             <p className="text-resto-acero font-semibold">Cargando el menú...</p>
           </div>
@@ -406,7 +411,7 @@ export default function MenuPage() {
                         <li key={linea.id} className="inline-flex items-center gap-1.5 rounded-full bg-resto-manteca border border-resto-ciruela/10 px-3 py-1 text-xs font-semibold">
                           <span>{linea.icono || '📦'}</span>
                           <span>{linea.insumoNombre}</span>
-                          <span className="text-resto-acero">· {linea.cantidad} {linea.unidadMedida}</span>
+                          <span className="text-resto-acero">· {formatearCantidad(linea.cantidad)} {linea.unidadMedida}</span>
                         </li>
                       ))}
                     </ul>
@@ -434,10 +439,10 @@ export default function MenuPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void eliminarPlato(plato)}
+                    onClick={() => setPlatoAEliminar(plato)}
                     title={`Eliminar ${plato.nombre}`}
                     aria-label={`Eliminar ${plato.nombre}`}
-                    className="w-10 h-10 rounded-xl border border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-dorado transition-colors"
+                    className="w-10 h-10 rounded-xl border border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-canela transition-colors"
                   >
                     🗑
                   </button>
@@ -450,7 +455,10 @@ export default function MenuPage() {
 
       {/* MODAL ALTA / EDICIÓN DE PLATO */}
       {modalPlato && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-resto-ciruela/40 backdrop-blur-sm p-4" role="dialog" aria-modal="true">
+        <Modal
+          ariaLabel={editandoId != null ? 'Editar plato' : 'Nuevo plato'}
+          onClose={cerrarModalPlato}
+        >
           <form onSubmit={guardarPlato} className="w-full max-w-2xl rounded-[2rem] bg-white p-6 md:p-8 shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-2xl font-black">{editandoId != null ? 'Editar plato' : 'Nuevo plato'}</h3>
             <p className="text-sm text-resto-acero mt-2">
@@ -543,7 +551,7 @@ export default function MenuPage() {
                           >
                             {insumos.map((i) => (
                               <option key={i.id} value={i.id}>
-                                {i.icono || '📦'} {i.nombre} ({i.cantidad ?? 0} {i.unidadMedida || 'Unidades'})
+                                {i.icono || '📦'} {i.nombre} ({formatearCantidad(i.cantidad)} {i.unidadMedida || 'unidad'})
                               </option>
                             ))}
                           </select>
@@ -555,12 +563,12 @@ export default function MenuPage() {
                             onChange={(e) => setLineas((actuales) => actuales.map((l, i) => i === index ? { ...l, cantidad: e.target.value } : l))}
                             className="w-24 rounded-xl border border-resto-acero/20 px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-resto-oliva"
                           />
-                          <span className="text-xs text-resto-acero w-20 truncate">{insumo?.unidadMedida || 'Unidades'}</span>
+                          <span className="text-xs text-resto-acero w-20 truncate">{insumo?.unidadMedida || 'unidad'}</span>
                           <button
                             type="button"
                             onClick={() => setLineas((actuales) => actuales.filter((_, i) => i !== index))}
                             aria-label="Quitar ingrediente"
-                            className="w-9 h-9 shrink-0 rounded-lg border border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-dorado"
+                            className="w-9 h-9 shrink-0 rounded-lg border border-resto-ciruela/10 text-resto-acero hover:border-resto-dorado hover:text-resto-canela"
                           >
                             ×
                           </button>
@@ -588,12 +596,15 @@ export default function MenuPage() {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
       )}
 
       {/* MODAL PREPARAR */}
       {platoAPreparar && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-resto-ciruela/40 backdrop-blur-sm p-4" role="dialog" aria-modal="true">
+        <Modal
+          ariaLabel={`Preparar ${platoAPreparar.nombre}`}
+          onClose={cerrarPreparar}
+        >
           <div className="w-full max-w-lg rounded-[2rem] bg-white p-6 md:p-8 shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-2xl font-black">Preparar {platoAPreparar.nombre}</h3>
             <p className="text-sm text-resto-acero mt-2">
@@ -610,7 +621,7 @@ export default function MenuPage() {
               <div className="mt-6">
                 <div className="rounded-2xl border border-resto-oliva/40 bg-resto-oliva/10 p-5">
                   <p className="font-bold text-resto-oliva">
-                    ✓ {resultado.platoNombre} x{resultado.cantidad} preparado
+                    ✓ {resultado.platoNombre} x{formatearCantidad(resultado.cantidad)} preparado
                     {resultado.mesaNombre ? ` para ${resultado.mesaNombre}` : ' (sin mesa)'}
                   </p>
                   <p className="text-[10px] uppercase tracking-wider font-bold text-resto-acero mt-4 mb-2">Stock restante</p>
@@ -618,7 +629,7 @@ export default function MenuPage() {
                     {resultado.stockRestante.map((s) => (
                       <li key={s.nombre} className="flex justify-between">
                         <span>{s.nombre}</span>
-                        <span className="font-bold">{s.cantidadRestante} {s.unidadMedida}</span>
+                        <span className="font-bold">{formatearCantidad(s.cantidadRestante)} {s.unidadMedida}</span>
                       </li>
                     ))}
                   </ul>
@@ -694,7 +705,20 @@ export default function MenuPage() {
               </div>
             )}
           </div>
-        </div>
+        </Modal>
+      )}
+
+      {platoAEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar plato"
+          mensaje={`¿Eliminar "${platoAEliminar.nombre}" del menú? Esta acción no se puede deshacer.`}
+          onCancel={() => setPlatoAEliminar(null)}
+          onConfirm={() => {
+            const plato = platoAEliminar;
+            setPlatoAEliminar(null);
+            void eliminarPlato(plato);
+          }}
+        />
       )}
 
       {/* FOOTER */}

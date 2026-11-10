@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/lib/api';
 import { guardarSesionTrasAuth } from '@/lib/use-auth-session';
@@ -160,7 +161,7 @@ export default function LoginPage() {
 
             {/* Error */}
             {error && (
-              <div className="mb-6 rounded-xl border border-resto-dorado/40 bg-resto-dorado/10 px-4 py-3 text-sm text-resto-ciruela">
+              <div className="mb-6 rounded-xl border border-resto-dorado/40 bg-resto-dorado/10 px-4 py-3 text-sm text-resto-ciruela" role="alert">
                 {error}
               </div>
             )}
@@ -185,6 +186,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@tu-restaurante.com"
                   required
+                  autoComplete="email"
                   className="w-full rounded-xl border border-resto-acero/20 px-4 py-3.5 bg-resto-manteca/40 text-resto-ciruela placeholder:text-resto-acero/50 focus:outline-none focus:ring-2 focus:ring-resto-oliva focus:border-resto-oliva transition-all"
                 />
               </div>
@@ -192,23 +194,12 @@ export default function LoginPage() {
 
               {/* Contraseña */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-
-                  <label
-                    htmlFor="contrasena"
-                    className="block text-sm font-semibold text-resto-ciruela"
-                  >
-                    Contraseña
-                  </label>
-
-                  <a
-                    href="#"
-                    className="text-xs font-semibold text-resto-oliva hover:text-resto-dorado transition-colors"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </a>
-
-                </div>
+                <label
+                  htmlFor="contrasena"
+                  className="block text-sm font-semibold text-resto-ciruela mb-2"
+                >
+                  Contraseña
+                </label>
 
                 <input
                   id="contrasena"
@@ -217,6 +208,7 @@ export default function LoginPage() {
                   onChange={(e) => setContrasena(e.target.value)}
                   placeholder="••••••••"
                   required
+                  autoComplete="current-password"
                   className="w-full rounded-xl border border-resto-acero/20 px-4 py-3.5 bg-resto-manteca/40 text-resto-ciruela placeholder:text-resto-acero/50 focus:outline-none focus:ring-2 focus:ring-resto-oliva focus:border-resto-oliva transition-all"
                 />
               </div>
@@ -249,12 +241,12 @@ export default function LoginPage() {
 
               <p className="text-sm text-resto-acero">
                 ¿Tu local aún no forma parte?{' '}
-                <a
+                <Link
                   href="/register"
-                  className="font-bold text-resto-oliva hover:text-resto-dorado transition-colors"
+                  className="font-bold text-resto-oliva hover:text-resto-canela transition-colors"
                 >
                   Registrar restaurante
-                </a>
+                </Link>
               </p>
 
             </div>

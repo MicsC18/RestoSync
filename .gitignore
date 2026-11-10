@@ -20,4 +20,4 @@ bin/
 .idea/
 
 # Documento de trabajo local (no se versiona)
-PLAN_COMPLETAR.md
+Plan-*.md

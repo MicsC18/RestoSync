@@ -5,14 +5,36 @@ import com.restosync.core.security.UsuarioPrincipal
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.util.Date
 import javax.crypto.SecretKey
 
 @Service
-class JwtService {
+class JwtService(
+    // La clave llega desde restosync.jwt.secret (perfil local o variable JWT_SECRET).
+    // El valor real NUNCA va acá: ver Plan-Mejoras.md §2 y README.md "1. Backend".
+    @Value("\${restosync.jwt.secret}") private val secretKeyString: String
+) {
 
-    private val secretKeyString = "RestoSyncSuperSecretaClaveParaTokensDeAlMenos32Caracteres"
+    init {
+        // El core no puede arrancar con una clave ausente o previsible: con la clave se
+        // forjan tokens de cualquier rol y local, así que preferimos un arranque roto y
+        // explicativo antes que un sistema "funcionando" con la firma comprometida.
+        val clave = secretKeyString.toByteArray(Charsets.UTF_8)
+        if (clave.size < 32) {
+            throw IllegalStateException(
+                if (clave.isEmpty())
+                    "Falta la clave de firma de JWT: definí restosync.jwt.secret en " +
+                        "application-local.properties o en la variable de entorno JWT_SECRET " +
+                        "(README.md, sección 1. Backend)."
+                else
+                    "La clave restosync.jwt.secret es demasiado corta: se necesitan al menos " +
+                        "32 bytes para firmar HS256 y se configuraron ${clave.size}. Cambiá el " +
+                        "valor en application-local.properties o en JWT_SECRET."
+            )
+        }
+    }
 
     private fun getSigningKey(): SecretKey {
         return Keys.hmacShaKeyFor(secretKeyString.toByteArray())
@@ -25,7 +47,10 @@ class JwtService {
         rol: RolUsuario,
         localId: Long? = null
     ): String {
-        val tiempoValidez = 1000L * 60 * 60 * 24
+        // 12 h: no hay refresh token, así que se busca el balance entre no logout cada
+        // dos minutos y no dejar un token robado vigente un día entero. El front ya maneja
+        // la expiración redirigiendo a /login cuando /me falla (use-auth-session).
+        val tiempoValidez = 1000L * 60 * 60 * 12
         val builder = Jwts.builder()
             .subject(email)
             .claim("usuarioId", usuarioId)
