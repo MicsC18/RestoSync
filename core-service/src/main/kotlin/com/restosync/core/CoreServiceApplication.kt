@@ -443,27 +443,26 @@ class CoreServiceApplication {
      * `Double`, así que en Neon hay filas con ruido (`9.200000000000003`). Desde que el core
      * normaliza con `redondear` en cada escritura no se generan más, pero las viejas seguían
      * visibles. Se acotan a dos decimales **solo donde hay ruido** (`cantidad <> ROUND(...)`),
-     * así la migración es idempotente y no reescribe datos sanos ni su `updated_at`.
+     * así la migración es idempotente y no reescribe datos sanos.
+     *
+     * Dos detalles del `UPDATE` en PostgreSQL: el `SET` **no lleva** el nombre de la tabla
+     * (`SET lotes.cantidad = ...` es error de sintaxis) y conviene filtrar primero contra
+     * `information_schema`: un statement que falla aborta la transacción del arranque y el
+     * `try/catch` no alcanza, porque todo lo siguiente del mismo bloque revienta con
+     * "current transaction is aborted".
      */
     private fun sanearRuidoPuntoFlotante(entityManager: EntityManager) {
-        val columnas = listOf(
-            "lotes.cantidad",
-            "insumos.cantidad",
-            "movimientos_stock.cantidad",
-            "receta_insumos.cantidad",
-            "producciones.cantidad"
-        )
+        val tablas = listOf("lotes", "insumos", "movimientos_stock", "receta_insumos", "producciones")
+        val existente = entityManager.createNativeQuery(
+            "SELECT table_name FROM information_schema.columns " +
+                "WHERE column_name = 'cantidad' AND table_name IN ('" + tablas.joinToString("','") + "')"
+        ).resultList.map { it.toString() }
         var limpiadas = 0
-        for (columna in columnas) {
-            try {
-                limpiadas += entityManager.createNativeQuery(
-                    "UPDATE ${columna.substringBefore('.')} " +
-                        "SET $columna = ROUND($columna::numeric, 2) " +
-                        "WHERE $columna IS NOT NULL AND $columna <> ROUND($columna::numeric, 2)"
-                ).executeUpdate()
-            } catch (_: Exception) {
-                // Tabla o columna inexistente (esquema previo al ddl): no frena el arranque.
-            }
+        for (tabla in tablas.filter { existente.contains(it) }) {
+            limpiadas += entityManager.createNativeQuery(
+                "UPDATE $tabla SET cantidad = ROUND(cantidad::numeric, 2) " +
+                    "WHERE cantidad IS NOT NULL AND cantidad <> ROUND(cantidad::numeric, 2)"
+            ).executeUpdate()
         }
         if (limpiadas > 0) {
             println(">>> Cantidades limpiadas de ruido de punto flotante: $limpiadas fila(s)")
