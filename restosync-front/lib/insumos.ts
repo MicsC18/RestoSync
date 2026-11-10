@@ -14,6 +14,61 @@ export const CATEGORIAS_BASE = [
   'Panadería',
 ]
 
+/**
+ * Magnitudes profesionales de un restaurante (primer selector). Cada una ofrece sus
+ * unidades de precisión (segundo selector) en notación estándar: Peso → kg/g/mg,
+ * Volumen → l/ml, Unidades → contables. Fuente única para toda la app: para ampliar,
+ * editar acá y reflejarlo en el prompt de `restosync-ia/main.py`. El backend guarda
+ * `unidadMedida` como string libre con el SÍMBOLO (ej. 'kg'); el tipo se deriva.
+ * Las unidades informales de envase (Docenas, Paquetes, Latas, Atados) se retiraron:
+ * la migración `normalizarUnidadesMedida` del core las convierte al arrancar.
+ */
+export type TipoUnidad = 'Peso' | 'Volumen' | 'Unidades'
+
+export const TIPOS_UNIDAD: TipoUnidad[] = ['Peso', 'Volumen', 'Unidades']
+
+export const UNIDADES_POR_TIPO: Record<TipoUnidad, string[]> = {
+  Peso: ['kg', 'g', 'mg'],
+  Volumen: ['l', 'ml'],
+  Unidades: ['unidad'],
+}
+
+/** Todas las unidades válidas, en el orden de sus tipos. */
+export const UNIDADES_BASE: string[] = TIPOS_UNIDAD.flatMap((tipo) => UNIDADES_POR_TIPO[tipo])
+
+const UNIDAD_POR_DEFECTO: Record<TipoUnidad, string> = {
+  Peso: 'kg',
+  Volumen: 'l',
+  Unidades: 'unidad',
+}
+
+/** Magnitud a la que pertenece una unidad guardada; legacy/desconocida cae en Unidades. */
+export function tipoDeUnidad(unidad: string | null | undefined): TipoUnidad {
+  const limpia = (unidad ?? '').trim()
+  return TIPOS_UNIDAD.find((tipo) => UNIDADES_POR_TIPO[tipo].includes(limpia)) ?? 'Unidades'
+}
+
+/** Unidad de precisión inicial al elegir una magnitud (kg / l / unidad). */
+export function unidadPorDefecto(tipo: TipoUnidad): string {
+  return UNIDAD_POR_DEFECTO[tipo]
+}
+
+// Nombre legacy capitalizado (antes de la migración del core) → símbolo actual.
+const UNIDAD_LEGACY: Record<string, string> = {
+  'kilos': 'kg', 'kilo': 'kg', 'kg': 'kg', 'kilogramos': 'kg',
+  'gramos': 'g', 'gramo': 'g',
+  'litros': 'l', 'litro': 'l',
+  'unidades': 'unidad',
+  'docenas': 'unidad', 'paquetes': 'unidad', 'latas': 'unidad', 'atados': 'unidad',
+}
+
+/** Normaliza unidades legacy a la notación actual para mostrarlas (pasa intactas las sanas). */
+export function normalizarUnidad(unidad: string | null | undefined): string {
+  const limpia = (unidad ?? '').trim()
+  if (!limpia) return 'unidad'
+  return UNIDAD_LEGACY[limpia.toLowerCase()] ?? limpia
+}
+
 const ICONO_POR_CATEGORIA: Record<string, string> = {
   'Lácteos': '🥛',
   'Carnes': '🍗',

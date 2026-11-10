@@ -9,7 +9,7 @@
 
 import { aiServiceUrl } from '@/lib/api';
 import { escanearTicketMock, usarMockIa } from '@/lib/ia-mock';
-import { iconoParaInsumo } from '@/lib/insumos';
+import { iconoParaInsumo, normalizarUnidad } from '@/lib/insumos';
 
 /** Ítem de insumo resultante del dictado (contrato compartido con la IA y el guardado). */
 export type ItemDictado = {
@@ -24,17 +24,6 @@ export type ItemDictado = {
 
 /** Cómo se obtuvo la transformación: con IA o interpretando el texto localmente. */
 export type FuenteDictado = 'ia' | 'local';
-
-/** Unidades que ofrece el select de revisión (las mismas que normaliza la IA y el parser). */
-export const UNIDADES_DICTADO = [
-  'Unidades',
-  'Kilos',
-  'Litros',
-  'Docenas',
-  'Paquetes',
-  'Latas',
-  'Atados',
-];
 
 type ItemsBrutos = { itemsEncontrados?: unknown };
 
@@ -53,7 +42,7 @@ export function normalizarItemsDictado(items: unknown): ItemDictado[] {
       categoria: (item.categoria as string) || 'Almacén',
       icono: (item.icono as string) || iconoParaInsumo(String(item.nombre), (item.categoria as string) || 'Almacén'),
       cantidad: typeof item.cantidad === 'number' && item.cantidad > 0 ? item.cantidad : 1,
-      unidadMedida: (item.unidadMedida as string) || 'Unidades',
+      unidadMedida: normalizarUnidad((item.unidadMedida as string) || 'unidad'),
       diasRestantes: typeof item.diasRestantes === 'number' && item.diasRestantes >= 0 ? item.diasRestantes : 30,
       estado: item.estado === 'Abierto' ? 'Abierto' : 'Cerrado',
     }));
@@ -92,7 +81,7 @@ export async function procesarDictado(
 // ---------- Parser local heurístico (fallback sin IA) ----------
 
 // Numerales en español → número, aplicados fragmento por fragmento.
-// "par" vale 2; "docena" se trata aparte porque además es unidad (12 Docenas).
+// "par" vale 2; "docena" se trata aparte porque además equivale a 12 unidades.
 const NUMERALES: [RegExp, string][] = [
   [/\buno\b/i, '1'],
   [/\bpar\b/i, '2'],
@@ -114,19 +103,21 @@ const NUMERALES: [RegExp, string][] = [
 const CANTIDAD_UNIDAD =
   /^(\d+(?:[.,]\d+)?|un[ao]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|doce|medi[oa]|par)?\s*(kilos?|kg|litros?|docenas?|paquetes?|latas?|atados?|par)\s+de\s+/i;
 
-// Unidad suelta sin número delante ("docena de huevos" → 12 Docenas).
+// Unidad suelta sin número delante ("docena de huevos" → 12 unidad).
 const UNIDAD_SUELTA: [RegExp, number, string][] = [
-  [/\bdocenas?\b/i, 12, 'Docenas'],
+  [/\bdocenas?\b/i, 12, 'unidad'],
 ];
 
-// Unidades reconocidas en cualquier parte del fragmento → valor de `unidadMedida`.
+// Unidades reconocidas en cualquier parte del fragmento → símbolo de `unidadMedida`.
+// Los envases (paquete/lata/atado) se cuentan como unidades: la notación profesional
+// solo distingue peso (kg/g/mg), volumen (l/ml) y contables (unidad).
 const UNIDADES: [RegExp, string][] = [
-  [/\bkilos?\b|\bkg\b/i, 'Kilos'],
-  [/\blitros?\b/i, 'Litros'],
-  [/\bdocenas?\b/i, 'Docenas'],
-  [/\bpaquetes?\b/i, 'Paquetes'],
-  [/\blatas?\b/i, 'Latas'],
-  [/\batados?\b/i, 'Atados'],
+  [/\bkilos?\b|\bkg\b/i, 'kg'],
+  [/\blitros?\b/i, 'l'],
+  [/\bdocenas?\b/i, 'unidad'],
+  [/\bpaquetes?\b/i, 'unidad'],
+  [/\blatas?\b/i, 'unidad'],
+  [/\batados?\b/i, 'unidad'],
 ];
 
 // Ruido conversacional típico de un dictado: si el fragmento arranca con una de
@@ -143,10 +134,10 @@ const RELLENO_INICIAL = /^(?:de|del|la|el|los|las|con|y|o|un|una|e)\b[\s']*/i;
 /**
  * Extrae productos del texto dictado sin IA. Casos de referencia (verificación manual §2.6):
  *  - "dos kilos de tomates y tres litros de leche"
- *      → Tomates 2 Kilos + Leche 3 Litros (divide por " y ", detecta cantidad+unidad)
- *  - "un chorizo" → Chorizo 1 Unidades
- *  - "docena de huevos" → Huevos 12 Docenas
- *  - "2 kg de papas, medio litro de aceite" → Papas 2 Kilos + Aceite 0.5 Litros
+ *      → Tomates 2 kg + Leche 3 l (divide por " y ", detecta cantidad+unidad)
+ *  - "un chorizo" → Chorizo 1 unidad
+ *  - "docena de huevos" → Huevos 12 unidad
+ *  - "2 kg de papas, medio litro de aceite" → Papas 2 kg + Aceite 0.5 l
  *  - "compré harina, levadura luego azúcar" → tres ítems (divide por "," y " luego ")
  *  - texto de conversación ("hola cómo estás") → lista vacía → el UI muestra el error.
  * Es una heurística conservadora: nunca inventa ítems, y lo que devuelve igual se revisa.
@@ -170,7 +161,7 @@ export function parseoLocalDictado(texto: string): ItemDictado[] {
     if (!fragmento) continue;
 
     let cantidad: number | null = null;
-    let unidadMedida = 'Unidades';
+    let unidadMedida = 'unidad';
 
     // 1) Cantidad + unidad al inicio seguidas de "de" (o pegadas al nombre).
     const matchUnidad = fragmento.match(CANTIDAD_UNIDAD);
@@ -180,17 +171,16 @@ export function parseoLocalDictado(texto: string): ItemDictado[] {
       cantidad = /^un/.test(numero ?? '') ? null : parsearNumero(numero ?? '');
       const unidadCruda = matchUnidad[2].toLowerCase();
       if (/^doc/.test(unidadCruda)) {
-        // "una docena" = 12; "dos docenas" = 2.
-        unidadMedida = 'Docenas';
-        cantidad = cantidad ?? 12;
+        // "una docena" = 12 unidades; "dos docenas" = 24.
+        unidadMedida = 'unidad';
+        cantidad = (cantidad ?? 1) * 12;
       } else if (/^par$/.test(unidadCruda)) {
         // "un par de" = 2; si el usuario dictó otro número lo respetamos.
-        unidadMedida = 'Unidades';
+        unidadMedida = 'unidad';
         cantidad = cantidad ?? 2;
-      } else if (/^k/.test(unidadCruda)) unidadMedida = 'Kilos';
-      else if (/^l/.test(unidadCruda)) unidadMedida = 'Litros';
-      else if (/^p/.test(unidadCruda)) unidadMedida = 'Paquetes';
-      else if (/^at/.test(unidadCruda)) unidadMedida = 'Atados';
+      } else if (/^k/.test(unidadCruda)) unidadMedida = 'kg';
+      else if (/^lit/.test(unidadCruda)) unidadMedida = 'l';
+      else if (/^(lat|pac|at)/.test(unidadCruda)) unidadMedida = 'unidad';
       fragmento = fragmento.slice(matchUnidad[0].length);
     } else {
       // 2) Unidad suelta sin número delante ("docena de medialunas").
@@ -211,7 +201,7 @@ export function parseoLocalDictado(texto: string): ItemDictado[] {
         }
       }
       // 4) Unidad sin "de" después del número ("dos tomates kilos" no, pero "kilos tomates" sí):
-      if (unidadMedida === 'Unidades') {
+      if (unidadMedida === 'unidad') {
         for (const [patron, unidad] of UNIDADES) {
           if (patron.test(fragmento)) {
             unidadMedida = unidad;

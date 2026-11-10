@@ -89,7 +89,7 @@ def test_dictar_insumos_exito(mock_generate_content):
                 "categoria": "Frutas y verduras",
                 "icono": "🍅",
                 "cantidad": 2,
-                "unidadMedida": "Kilos",
+                "unidadMedida": "kg",
                 "diasRestantes": 5
             },
             {
@@ -117,10 +117,10 @@ def test_dictar_insumos_exito(mock_generate_content):
     primer, segundo = data["itemsEncontrados"]
     assert primer["nombre"] == "Tomates"
     assert primer["cantidad"] == 2
-    assert primer["unidadMedida"] == "Kilos"
+    assert primer["unidadMedida"] == "kg"
     # Contrato completo en todos los ítems: estado fijo y defaults conservadores.
     assert primer["estado"] == "Cerrado"
-    assert segundo["unidadMedida"] == "Unidades"
+    assert segundo["unidadMedida"] == "unidad"
     assert segundo["icono"] == "🛒"
     assert segundo["estado"] == "Cerrado"
 

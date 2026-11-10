@@ -84,6 +84,13 @@ Detalle completo con su justificación en `Plan-General.md` §4.4/§4.5 (ver §8
   guardaba en `lotes.cantidad` / `insumos.cantidad` y se veía como `9.200000000000003`. Regla
   fija en `InventarioServiceRedondeoTest` y `CantidadesTest`; el front además formatea con
   `lib/numero.ts`.
+- **Unidades profesionales en dos niveles**: la unidad de un insumo es un símbolo (`kg/g/mg` de peso,
+  `l/ml` de volumen, `unidad` contable) guardado en `insumos.unidad_medida`; el "tipo de medida"
+  (Peso/Volumen/Unidades) es solo de UI y se deriva del símbolo. Fuente única en el front:
+  `lib/insumos.ts` (`UNIDADES_POR_TIPO`), espejada en los prompts de `restosync-ia/main.py` (ambas
+  listas se mantienen sincronizadas a mano). Quedaron retiradas las unidades informales de envase
+  (Docenas, Paquetes, Latas, Atados): la migración `normalizarUnidadesMedida` las convierte al
+  arrancar (Docenas → ×12 `unidad`). No volver a aceptarlas en UI, prompts ni seeds.
 
 ## 7. Cómo verificar un cambio
 

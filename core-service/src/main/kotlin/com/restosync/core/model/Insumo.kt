@@ -15,7 +15,7 @@ data class Insumo(
     val nombre: String = "",
     val categoria: String? = "Almacén",
     val icono: String? = "📦",
-    val unidadMedida: String = "Unidades",
+    val unidadMedida: String = "unidad",
     val stockMinimo: Double? = 1.0,
     val cantidad: Double? = 1.0,
     val diasRestantes: Int = 30,

@@ -4,7 +4,16 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { apiUrl, authHeaders } from '@/lib/api';
 import { formatearCantidad, redondearCantidad } from '@/lib/numero';
-import { CATEGORIAS_BASE, iconoParaInsumo } from '@/lib/insumos';
+import {
+  CATEGORIAS_BASE,
+  TIPOS_UNIDAD,
+  UNIDADES_POR_TIPO,
+  normalizarUnidad,
+  tipoDeUnidad,
+  unidadPorDefecto,
+  iconoParaInsumo,
+  type TipoUnidad,
+} from '@/lib/insumos';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
 import Modal from '@/components/modal';
@@ -47,7 +56,7 @@ const formVacio: FormularioInsumo = {
   nombre: '',
   categoria: 'Almacén',
   cantidad: '1',
-  unidadMedida: 'Unidades',
+  unidadMedida: 'unidad',
   diasRestantes: '30',
   estado: 'Cerrado',
 };
@@ -112,7 +121,7 @@ export default function InventarioPage() {
             diasRestantes: insumo.diasRestantes ?? 0,
             estado: insumo.estado === 'Abierto' ? 'Abierto' : 'Cerrado',
             stock: redondearCantidad(insumo.cantidad),
-            unidad: insumo.unidadMedida || 'Unidades',
+            unidad: normalizarUnidad(insumo.unidadMedida),
           })));
         }
       } catch (loadError: unknown) {
@@ -147,6 +156,15 @@ export default function InventarioPage() {
     ...productos.map((producto) => producto.categoria),
     form.categoria,
   ]));
+
+  // Selector de unidad en dos niveles: la magnitud se deriva de la unidad guardada y
+  // el segundo selector ofrece solo sus unidades de precisión (kg/g/mg, l/ml, unidad).
+  // La actual se mantiene como opción extra si es legacy y aun no migró (no perderla).
+  const tipoUnidadSeleccionado = tipoDeUnidad(form.unidadMedida);
+  const opcionesUnidad = Array.from(new Set([
+    ...UNIDADES_POR_TIPO[tipoUnidadSeleccionado],
+    form.unidadMedida,
+  ])).filter(Boolean);
 
   const productosFiltrados = filtroCategoria === 'Todas'
     ? productosVisibles
@@ -207,7 +225,7 @@ export default function InventarioPage() {
         nombre,
         categoria: form.categoria.trim() || 'Almacén',
         cantidad,
-        unidadMedida: form.unidadMedida.trim() || 'Unidades',
+        unidadMedida: form.unidadMedida.trim() || 'unidad',
         diasRestantes,
         estado: form.estado,
       };
@@ -512,16 +530,33 @@ export default function InventarioPage() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="insumoUnidad" className="block text-sm font-semibold mb-1.5">Unidad</label>
-                  <input
-                    id="insumoUnidad"
-                    value={form.unidadMedida}
-                    onChange={(e) => setForm((f) => ({ ...f, unidadMedida: e.target.value }))}
-                    className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-resto-oliva"
-                  />
+                  <label htmlFor="insumoTipoUnidad" className="block text-sm font-semibold mb-1.5">Tipo de medida</label>
+                  <select
+                    id="insumoTipoUnidad"
+                    value={tipoUnidadSeleccionado}
+                    onChange={(e) => setForm((f) => ({ ...f, unidadMedida: unidadPorDefecto(e.target.value as TipoUnidad) }))}
+                    className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                  >
+                    {TIPOS_UNIDAD.map((tipo) => (
+                      <option key={tipo} value={tipo}>{tipo}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="insumoUnidad" className="block text-sm font-semibold mb-1.5">Unidad</label>
+                  <select
+                    id="insumoUnidad"
+                    value={form.unidadMedida}
+                    onChange={(e) => setForm((f) => ({ ...f, unidadMedida: e.target.value }))}
+                    className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                  >
+                    {opcionesUnidad.map((unidad) => (
+                      <option key={unidad} value={unidad}>{unidad}</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label htmlFor="insumoCantidad" className="block text-sm font-semibold mb-1.5">Cantidad</label>
                   <input
@@ -548,18 +583,18 @@ export default function InventarioPage() {
                     className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-resto-oliva"
                   />
                 </div>
-              </div>
-              <div>
-                <label htmlFor="insumoEstado" className="block text-sm font-semibold mb-1.5">Estado</label>
-                <select
-                  id="insumoEstado"
-                  value={form.estado}
-                  onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value as FormularioInsumo['estado'] }))}
-                  className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
-                >
-                  <option value="Cerrado">Cerrado</option>
-                  <option value="Abierto">Abierto</option>
-                </select>
+                <div>
+                  <label htmlFor="insumoEstado" className="block text-sm font-semibold mb-1.5">Estado</label>
+                  <select
+                    id="insumoEstado"
+                    value={form.estado}
+                    onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value as FormularioInsumo['estado'] }))}
+                    className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                  >
+                    <option value="Cerrado">Cerrado</option>
+                    <option value="Abierto">Abierto</option>
+                  </select>
+                </div>
               </div>
             </div>
 

@@ -5,9 +5,17 @@ import Link from 'next/link';
 import { aiServiceUrl, apiUrl, authHeaders } from '@/lib/api';
 import { useAuthSession } from '@/lib/use-auth-session';
 import { escanearTicketMock, usarMockIa } from '@/lib/ia-mock';
-import { CATEGORIAS_BASE } from '@/lib/insumos';
+import {
+  CATEGORIAS_BASE,
+  TIPOS_UNIDAD,
+  UNIDADES_POR_TIPO,
+  normalizarUnidad,
+  tipoDeUnidad,
+  unidadPorDefecto,
+  type TipoUnidad,
+} from '@/lib/insumos';
 import { redondearCantidad } from '@/lib/numero';
-import { procesarDictado, UNIDADES_DICTADO, type ItemDictado } from '@/lib/dictado';
+import { procesarDictado, type ItemDictado } from '@/lib/dictado';
 
 type SpeechRecognitionAlternative = { transcript: string };
 
@@ -130,8 +138,8 @@ export default function RegistroClient() {
         Array.isArray(data.itemsEncontrados)
           ? data.itemsEncontrados.map((item) => ({
               ...item,
-              // Tickets: si Gemini no informó la unidad, default conservador (§2.5).
-              unidadMedida: item.unidadMedida || 'Unidades',
+              // Tickets: si Gemini no informó la unidad (o trajo una legacy), se normaliza (§2.5).
+              unidadMedida: normalizarUnidad(item.unidadMedida),
             }))
           : []
       );
@@ -256,7 +264,7 @@ export default function RegistroClient() {
       // Normalizamos acá para garantizar `unidadMedida` incluso con respuestas viejas.
       const nuevos: ProductoDetectado[] = items.map((item: ItemDictado) => ({
         ...item,
-        unidadMedida: item.unidadMedida || 'Unidades',
+        unidadMedida: normalizarUnidad(item.unidadMedida),
       }));
       setProductos((actuales) => [...actuales, ...nuevos]);
 
@@ -323,7 +331,7 @@ export default function RegistroClient() {
               nombre: prod.nombre,
               categoria: prod.categoria,
               icono: prod.icono,
-              unidadMedida: prod.unidadMedida || 'Unidades',
+              unidadMedida: normalizarUnidad(prod.unidadMedida),
               stockMinimo: 1,
               cantidad: redondearCantidad(prod.cantidad),
               diasRestantes: prod.diasRestantes,
@@ -776,26 +784,52 @@ export default function RegistroClient() {
                         className="w-full mt-1 rounded-xl border border-resto-ciruela/10 bg-resto-manteca px-3 py-2 text-center font-bold focus:outline-none focus:ring-2 focus:ring-resto-oliva"
                       />
 
-                      <label className="sr-only" htmlFor={`unidad-${index}`}>
-                        Unidad de medida
+                      <label className="sr-only" htmlFor={`tipo-unidad-${index}`}>
+                        Tipo de medida
                       </label>
 
-                      <select
-                        id={`unidad-${index}`}
-                        value={prod.unidadMedida || 'Unidades'}
-                        onChange={(e) =>
-                          actualizarProducto(
-                            index,
-                            'unidadMedida',
-                            e.target.value
-                          )
-                        }
-                        className="mt-2 w-full rounded-lg border border-resto-ciruela/10 bg-resto-manteca px-2 py-1 text-xs text-resto-acero focus:outline-none focus:ring-2 focus:ring-resto-oliva"
-                      >
-                        {Array.from(new Set([...UNIDADES_DICTADO, prod.unidadMedida])).filter(Boolean).map((unidad) => (
-                          <option key={unidad} value={unidad}>{unidad}</option>
-                        ))}
-                      </select>
+                      <div className="mt-2 grid grid-cols-2 gap-1">
+                        <select
+                          id={`tipo-unidad-${index}`}
+                          value={tipoDeUnidad(prod.unidadMedida)}
+                          onChange={(e) =>
+                            actualizarProducto(
+                              index,
+                              'unidadMedida',
+                              unidadPorDefecto(e.target.value as TipoUnidad)
+                            )
+                          }
+                          className="w-full rounded-lg border border-resto-ciruela/10 bg-resto-manteca px-2 py-1 text-xs text-resto-acero focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                        >
+                          {TIPOS_UNIDAD.map((tipo) => (
+                            <option key={tipo} value={tipo}>{tipo}</option>
+                          ))}
+                        </select>
+
+                        <label className="sr-only" htmlFor={`unidad-${index}`}>
+                          Unidad de medida
+                        </label>
+
+                        <select
+                          id={`unidad-${index}`}
+                          value={prod.unidadMedida || 'unidad'}
+                          onChange={(e) =>
+                            actualizarProducto(
+                              index,
+                              'unidadMedida',
+                              e.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border border-resto-ciruela/10 bg-resto-manteca px-2 py-1 text-xs text-resto-acero focus:outline-none focus:ring-2 focus:ring-resto-oliva"
+                        >
+                          {Array.from(new Set([
+                            ...UNIDADES_POR_TIPO[tipoDeUnidad(prod.unidadMedida)],
+                            prod.unidadMedida,
+                          ])).filter(Boolean).map((unidad) => (
+                            <option key={unidad} value={unidad}>{unidad}</option>
+                          ))}
+                        </select>
+                      </div>
 
                     </div>
 

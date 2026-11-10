@@ -107,6 +107,9 @@ class CoreServiceApplication {
                 // Sanear el ruido de `Double` que se persistió antes de unificar el redondeo en
                 // el core (valores tipo 9.200000000000003 en stock y cantidades). Idempotente.
                 sanearRuidoPuntoFlotante(entityManager)
+                // Unidades informales (Kilos, Docenas, Latas...) → notación profesional
+                // (kg/g/mg, l/ml, unidad). Idempotente: solo toca filas con valor legacy.
+                normalizarUnidadesMedida(entityManager)
                 // Plan-Mesas-Dictado §1.4: columnas nuevas nullable con ddl-auto=update llegan null.
                 // Las mesas ya OCUPADA anteriores a `fechaOcupacion` abren sesión ahora (idempotente:
                 // solo toca las que tienen la marca nula, los reinicios no pisan sesiones activas).
@@ -205,12 +208,12 @@ class CoreServiceApplication {
                 val unidad: String, val cantidad: Double, val minimo: Double, val venceEnDias: Long
             )
             val demos = listOf(
-                DemoInsumo("Pechuga de pollo", "Carnes", "🍗", "Kg", 10.0, 3.0, 5),
-                DemoInsumo("Pan rallado", "Almacén", "🍞", "Kg", 5.0, 1.0, 180),
-                DemoInsumo("Huevo", "Lácteos", "🥚", "Unidades", 24.0, 6.0, 12),
-                DemoInsumo("Aceite de oliva", "Almacén", "🫒", "Litros", 8.0, 2.0, 365),
-                DemoInsumo("Lechuga", "Frutas y verduras", "🥬", "Kg", 4.0, 1.0, 3),
-                DemoInsumo("Papa", "Frutas y verduras", "🥔", "Kg", 15.0, 5.0, 10)
+                DemoInsumo("Pechuga de pollo", "Carnes", "🍗", "kg", 10.0, 3.0, 5),
+                DemoInsumo("Pan rallado", "Almacén", "🍞", "kg", 5.0, 1.0, 180),
+                DemoInsumo("Huevo", "Lácteos", "🥚", "unidad", 24.0, 6.0, 12),
+                DemoInsumo("Aceite de oliva", "Almacén", "🫒", "l", 8.0, 2.0, 365),
+                DemoInsumo("Lechuga", "Frutas y verduras", "🥬", "kg", 4.0, 1.0, 3),
+                DemoInsumo("Papa", "Frutas y verduras", "🥔", "kg", 15.0, 5.0, 10)
             )
             for (demo in demos) {
                 val insumo = insumoRepo.save(
@@ -466,6 +469,44 @@ class CoreServiceApplication {
         }
         if (limpiadas > 0) {
             println(">>> Cantidades limpiadas de ruido de punto flotante: $limpiadas fila(s)")
+        }
+    }
+
+    /**
+     * Las unidades se normalizaron a notación profesional de restaurante: peso (kg/g/mg),
+     * volumen (l/ml) y contables (unidad). Los nombres legibles que se venían guardando
+     * ("Kilos", "Litros", "Unidades") y los de envase informal ("Docenas", "Paquetes",
+     * "Latas", "Atados") se convierten al símbolo actual. La única conversión que altera
+     * la cantidad es Docenas → ×12 (una docena sigue siendo la misma cantidad de producto,
+     * ahora contada en unidades); por eso va primero, sobre valores ya saneados por
+     * `sanearRuidoPuntoFlotante`. Idempotente: el `WHERE ... IN` no vuelve a tocar filas
+     * ya convertidas. Mismo criterio de `information_schema` que arriba: un UPDATE que
+     * falla aborta la transacción del arranque y el resto del bloque cae en cascada.
+     */
+    private fun normalizarUnidadesMedida(entityManager: EntityManager) {
+        val columna = entityManager.createNativeQuery(
+            "SELECT column_name FROM information_schema.columns " +
+                "WHERE table_name = 'insumos' AND column_name IN ('unidad_medida', 'unidadMedida')"
+        ).resultList.firstOrNull()?.toString() ?: return
+
+        val conversiones = listOf(
+            // Con cambio de cantidad primero (solo si la cantidad existe y no es nula).
+            "UPDATE insumos SET cantidad = ROUND((cantidad * 12)::numeric, 2), $columna = 'unidad' " +
+                "WHERE $columna IN ('Docenas','Docena') AND cantidad IS NOT NULL",
+            "UPDATE insumos SET $columna = 'unidad' " +
+                "WHERE $columna IN ('Unidades','Unidad','Latas','Lata','Paquetes','Paquete','Atados','Atado')",
+            "UPDATE insumos SET $columna = 'kg' WHERE $columna IN ('Kilos','Kilo','Kg','KG','Kilogramos')",
+            "UPDATE insumos SET $columna = 'g' WHERE $columna IN ('Gramos','Gramo','Gr','gr')",
+            "UPDATE insumos SET $columna = 'mg' WHERE $columna IN ('Miligramos','Miligramo','Mg')",
+            "UPDATE insumos SET $columna = 'l' WHERE $columna IN ('Litros','Litro','Lt','L')",
+            "UPDATE insumos SET $columna = 'ml' WHERE $columna IN ('Mililitros','Mililitro','ML')",
+        )
+        var convertidas = 0
+        for (sql in conversiones) {
+            convertidas += entityManager.createNativeQuery(sql).executeUpdate()
+        }
+        if (convertidas > 0) {
+            println(">>> Unidades de medida normalizadas a notación profesional: $convertidas insumo(s)")
         }
     }
 

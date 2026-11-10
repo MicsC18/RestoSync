@@ -222,7 +222,7 @@ async def escanear_ticket(file: UploadFile = File(...)):
         - "categoria": Categoría lógica (ej. Lácteos, Carnes, Frutas y verduras, Almacén, Bebidas, Panadería).
         - "icono": Un emoji representativo del producto.
         - "cantidad": Número entero con la cantidad adquirida.
-        - "unidadMedida": La unidad del documento ("Kilos", "Litros", "Docenas", "Paquetes", "Latas", "Atados" o "Unidades" si no se indica).
+        - "unidadMedida": La unidad del documento en notación profesional: "kg", "g" o "mg" para peso, "l" o "ml" para volumen, "unidad" para contables (botellas, cajas, latas). No inventes otras.
         - "diasRestantes": Días estimados de vida útil restantes a partir de la fecha actual, basándote en la fecha de vencimiento del documento o estimándola según el tipo de alimento si no la trae explícita.
         """
 
@@ -269,7 +269,7 @@ async def escanear_ticket(file: UploadFile = File(...)):
         # Asignación automática del estado inicial y defaults conservadores
         for item in items:
             item["estado"] = "Cerrado"
-            item.setdefault("unidadMedida", "Unidades")
+            item.setdefault("unidadMedida", "unidad")
 
         return {
             "mensaje": "Documento procesado inteligentemente por Google Gemini",
@@ -330,7 +330,7 @@ def dictar_insumos(request: DictarRequest):
         - "categoria": Categoría lógica (ej. Lácteos, Carnes, Frutas y verduras, Almacén, Bebidas, Panadería, Limpieza).
         - "icono": Un emoji representativo del producto.
         - "cantidad": Número con la cantidad adquirida (aceptá decimales: "medio kilo" es 0.5).
-        - "unidadMedida": La unidad mencionada en el texto, capitalizada: "Kilos", "Litros", "Docenas", "Paquetes", "Latas", "Atados"; usá "Unidades" si el texto no indica ninguna.
+        - "unidadMedida": La unidad del texto en notación profesional: "kg", "g" o "mg" para peso, "l" o "ml" para volumen, "unidad" para contables; usá "unidad" si el texto no indica ninguna. Convertí las expresiones informales: "una docena" es 12 con unidad "unidad", "dos paquetes/latas/atados" es 2 con unidad "unidad". No inventes otras.
         - "diasRestantes": Días estimados de vida útil restantes según el tipo de alimento (perecederos pocos días, secos y congelados muchos).
         Si el mismo producto aparece varias veces, sumalo en un único ítem.
         Si del texto no se puede extraer ningún producto, devolvé la lista vacía.
@@ -383,7 +383,7 @@ def dictar_insumos(request: DictarRequest):
                 "categoria": item.get("categoria") or "Almacén",
                 "icono": item.get("icono") or "🛒",
                 "cantidad": item.get("cantidad") or 1,
-                "unidadMedida": item.get("unidadMedida") or "Unidades",
+                "unidadMedida": item.get("unidadMedida") or "unidad",
                 "diasRestantes": item.get("diasRestantes") or 30,
                 "estado": "Cerrado",
             }

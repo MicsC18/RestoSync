@@ -27,7 +27,7 @@ const ITEMS_EJEMPLO: ItemEscaneadoMock[] = [
     categoria: 'Lácteos',
     icono: '🥛',
     cantidad: 2,
-    unidadMedida: 'Litros',
+    unidadMedida: 'l',
     diasRestantes: 7,
     estado: 'Cerrado',
   },
@@ -36,7 +36,7 @@ const ITEMS_EJEMPLO: ItemEscaneadoMock[] = [
     categoria: 'Frutas y verduras',
     icono: '🍅',
     cantidad: 6,
-    unidadMedida: 'Kilos',
+    unidadMedida: 'kg',
     diasRestantes: 4,
     estado: 'Cerrado',
   },
@@ -45,7 +45,7 @@ const ITEMS_EJEMPLO: ItemEscaneadoMock[] = [
     categoria: 'Almacén',
     icono: '🫙',
     cantidad: 1,
-    unidadMedida: 'Latas',
+    unidadMedida: 'l',
     diasRestantes: 120,
     estado: 'Cerrado',
   },
@@ -54,7 +54,7 @@ const ITEMS_EJEMPLO: ItemEscaneadoMock[] = [
     categoria: 'Carnes',
     icono: '🍗',
     cantidad: 3,
-    unidadMedida: 'Kilos',
+    unidadMedida: 'kg',
     diasRestantes: 3,
     estado: 'Cerrado',
   },
@@ -120,9 +120,9 @@ export async function prediccionDemandaMock(
   await new Promise((resolve) => setTimeout(resolve, 700));
 
   const especificaciones = [
-    { insumoId: 101, nombre: 'Mozzarella', icono: '🧀', unidadMedida: 'Kilos', base: 3.4, stock: 2.1, minimo: 2 },
-    { insumoId: 102, nombre: 'Harina 000', icono: '🌾', unidadMedida: 'Kilos', base: 6.2, stock: 12.5, minimo: 5 },
-    { insumoId: 103, nombre: 'Tomate perita', icono: '🍅', unidadMedida: 'Kilos', base: 2.1, stock: 18, minimo: 4 },
+    { insumoId: 101, nombre: 'Mozzarella', icono: '🧀', unidadMedida: 'kg', base: 3.4, stock: 2.1, minimo: 2 },
+    { insumoId: 102, nombre: 'Harina 000', icono: '🌾', unidadMedida: 'kg', base: 6.2, stock: 12.5, minimo: 5 },
+    { insumoId: 103, nombre: 'Tomate perita', icono: '🍅', unidadMedida: 'kg', base: 2.1, stock: 18, minimo: 4 },
   ];
 
   const demanda: DemandaItem[] = especificaciones
@@ -148,7 +148,7 @@ export async function prediccionDemandaMock(
       insumoId: 101,
       nombre: 'Mozzarella',
       icono: '🧀',
-      unidadMedida: 'Kilos',
+      unidadMedida: 'kg',
       cantidadEnRiesgo: 1.2,
       fechaVencimiento: venceEnTres,
     },
@@ -189,7 +189,7 @@ export async function prediccionDemandaMock(
         },
         {
           titulo: 'Usá la mozzarella del lote que vence el viernes',
-          detalle: 'Hay 1.2 Kilos en riesgo de merma porque vencen antes de consumirse. Girá ese lote a las pizzas del día.',
+          detalle: 'Hay 1.2 kg en riesgo de merma porque vencen antes de consumirse. Girá ese lote a las pizzas del día.',
         },
         {
           titulo: 'Aprovechá el pico de vi/sáb',

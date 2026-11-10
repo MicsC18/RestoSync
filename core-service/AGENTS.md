@@ -45,7 +45,7 @@ funcionando —Spring resuelve los beans por anotaciones, no por convención de 
 - `spring.jpa.hibernate.ddl-auto=update` **más** migraciones idempotentes escritas a mano que
   corren en el arranque (`migrarRolesNulos`, `migrarInsumosDeRestauranteALocal`,
   `repararInsumosFueraDeSuRestaurante`, `sincronizarSecuencias`, `migrarLotesLegacy`,
-  `sanearRuidoPuntoFlotante`, entre otras).
+  `sanearRuidoPuntoFlotante`, `normalizarUnidadesMedida`, entre otras).
   Entre ellas está el abrir sesión de las mesas OCUPADA heredadas sin `fechaOcupacion` (inline sobre
   `mesaRepo`, idempotente: solo toca las que tienen la marca en `null`).
   La carpeta `src/main/resources/db/migration/` está **vacía a propósito** y no la usa nadie: no
@@ -73,5 +73,11 @@ corrida es justamente lo que se quiere evitar. Trampas del stack:
 - Los matchers de Mockito revientan por unboxing contra `double` primitivo: usar `anyDouble()`.
 - `ApplicationContextRunner` no tiene `hasFailed()`: leer `context.startupFailure`.
 - En parámetros de funciones Kotlin de test evitar el nombre `con` (rompe el parser).
+
+Unidades: `insumos.unidad_medida` guarda el símbolo profesional (`kg/g/mg`, `l/ml`, `unidad`; default
+`"unidad"` en `Insumo`/`InventarioService`/seed), no nombres informales. `normalizarUnidadesMedida`
+convierte el legado al arrancar; Docenas → ×12 `unidad` va primero y su `ROUND` necesita el cast
+`::numeric` (`ROUND(double precision, int)` no existe en PostgreSQL). El "tipo de magnitud" es solo
+de UI (`lib/insumos.ts` del front); el core no lo persiste.
 
 Verificación: `.\gradlew.bat test` (todo) o `.\gradlew.bat compileKotlin` (solo compilación).

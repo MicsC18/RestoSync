@@ -121,7 +121,7 @@ class InventarioService(
             nombre = nombre,
             categoria = request.categoria ?: "Almacén",
             icono = request.icono ?: iconoAutomatico(nombre, request.categoria ?: "Almacén"),
-            unidadMedida = request.unidadMedida ?: "Unidades",
+            unidadMedida = request.unidadMedida ?: "unidad",
             stockMinimo = request.stockMinimo ?: 1.0,
             cantidad = 0.0,
             diasRestantes = diasRestantes,

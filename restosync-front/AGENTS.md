@@ -56,7 +56,14 @@ Una ruta nueva se registra en `app-navigation.tsx` **y** en `app-header.tsx`; el
   agregar ahí un `throw` ni un try/catch en la pantalla. La grabación usa Web Speech API con
   `continuous` + `interimResults`, la instancia vive en un `useRef` y **no se reinicia sola** en
   `onend` (loop de permisos de Chrome). El guardado manda la `unidadMedida` real del ítem (default
-  `'Unidades'`), no un valor fijo.
+  `'unidad'`), no un valor fijo.
+- **Unidades en dos niveles (no regress)**: la magnitud (`Peso`/`Volumen`/`Unidades`) y su precisión
+  (`kg/g/mg`, `l/ml`, `unidad`) viven en `lib/insumos.ts` (`TIPOS_UNIDAD`, `UNIDADES_POR_TIPO`,
+  `tipoDeUnidad`, `unidadPorDefecto`, `normalizarUnidad`). El backend guarda solo el símbolo en
+  `unidadMedida`; el tipo se deriva. Alta/edición en `/inventario` y revisión en `/registro` usan
+  **dos selectores** encadenados. Las unidades informales (Docenas, Paquetes, Latas, Atados) se
+  retiraron: no reponerlas en la UI ni en los prompts de la IA (la migración `normalizarUnidadesMedida`
+  del core convierte los datos viejos).
 - **Nunca se renderiza una cantidad cruda**: toda `cantidad` / `stock` que llega del core o de la IA
   se muestra con `formatearCantidad` (y se normaliza con `redondearCantidad` al cargarla) desde
   `lib/numero.ts`. Sin eso aparecen ruidos de punto flotante como `9.200000000000003 Kilos`. No

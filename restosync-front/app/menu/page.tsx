@@ -551,7 +551,7 @@ export default function MenuPage() {
                           >
                             {insumos.map((i) => (
                               <option key={i.id} value={i.id}>
-                                {i.icono || '📦'} {i.nombre} ({formatearCantidad(i.cantidad)} {i.unidadMedida || 'Unidades'})
+                                {i.icono || '📦'} {i.nombre} ({formatearCantidad(i.cantidad)} {i.unidadMedida || 'unidad'})
                               </option>
                             ))}
                           </select>
@@ -563,7 +563,7 @@ export default function MenuPage() {
                             onChange={(e) => setLineas((actuales) => actuales.map((l, i) => i === index ? { ...l, cantidad: e.target.value } : l))}
                             className="w-24 rounded-xl border border-resto-acero/20 px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-resto-oliva"
                           />
-                          <span className="text-xs text-resto-acero w-20 truncate">{insumo?.unidadMedida || 'Unidades'}</span>
+                          <span className="text-xs text-resto-acero w-20 truncate">{insumo?.unidadMedida || 'unidad'}</span>
                           <button
                             type="button"
                             onClick={() => setLineas((actuales) => actuales.filter((_, i) => i !== index))}

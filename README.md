@@ -196,8 +196,10 @@ $env:JWT_SECRET = "<cadena-de-al-menos-32-caracteres>"
 - **Sin perfil `local` ni variables, el backend no levanta**: Spring falla con un error de
   placeholder sin resolver (`Could not resolve placeholder 'DB_URL'`). Es el comportamiento
   querido, así nadie conecta el servicio contra una base sorpresa.
-- El esquema se actualiza solo al arrancar (`ddl-auto=update` + migraciones legacy en `initData`,
-  entre ellas `sanearRuidoPuntoFlotante`, que deja las cantidades históricas a dos decimales).
+- El esquema se actualiza solo al arrancar (`ddl-auto=update` + migraciones legacy en `initData`, entre
+  ellas `sanearRuidoPuntoFlotante`, que deja las cantidades históricas a dos decimales, y
+  `normalizarUnidadesMedida`, que convierte unidades viejas a la notación profesional: `Kilos` → `kg`,
+  `Litros` → `l`, `Docenas` → cantidad × 12 con `unidad`).
 - En el primer arranque se siembra el restaurante demo **"La Farola"** con datos de prueba
   (idempotente: no pisa datos existentes ni cuentas reales):
 
@@ -307,10 +309,11 @@ composición**: el core no orquesta a la IA y la IA no toca la base de datos.
 - **Dictado por voz** (`/registro?modo=audio`): botones explícitos **Empezar a grabar** /
   **Terminar de grabar** (Web Speech API del navegador, `es-AR`, acumula varias frases). El texto
   se procesa con **Procesar dictado** contra `POST /api/v1/ia/dictar-insumos`, que devuelve **un
-  ítem por producto** con `cantidad` y `unidadMedida` reales ("dos kilos de tomates y tres litros
-  de leche" → 2 Kilos / 3 Litros). Si el servicio de IA no está o falla, el front cae a un
+  ítem por producto** con `cantidad` y `unidadMedida` reales en notación profesional ("dos kilos de
+  tomates y tres litros de leche" → 2 kg / 3 l). Si el servicio de IA no está o falla, el front cae a un
   **parser heurístico local** (`lib/dictado.ts`) con el mismo contrato y un aviso en pantalla;
-  la unidad queda editable en la revisión antes de guardar.
+  el tipo de medida (Peso/Volumen/Unidades) y su precisión quedan editables en la revisión antes de
+  guardar.
 - **Menú y recetas**: platos por local con ingredientes; al **preparar** se descuenta stock
   agrupando las filas homónimas y consumiendo **FIFO por vencimiento**, con prevalidación de faltantes.
 - **Mesas**: mapa visual con arrastrar y soltar (posiciones persistidas) y estados
