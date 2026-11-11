@@ -12,4 +12,7 @@ interface RecetaInsumoRepository : JpaRepository<RecetaInsumo, Long> {
     /** Integridad: un insumo que es ingrediente de un plato no se puede eliminar. */
     fun existsByInsumoId(insumoId: Long): Boolean
     fun countByInsumoId(insumoId: Long): Long
+
+    /** Líneas que referencian una fila concreta: al fusionar filas se reenganchan a la destino. */
+    fun findByInsumoId(insumoId: Long): List<RecetaInsumo>
 }

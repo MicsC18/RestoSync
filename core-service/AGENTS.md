@@ -21,8 +21,9 @@ funcionando —Spring resuelve los beans por anotaciones, no por convención de 
 - **Toda operación de negocio pasa por `LocalContextService`**: admin elige el local por header
   `X-Local-Id` (validado contra sus permisos), gerente queda fijo al local del claim. Un endpoint
   que saltee esto es una fuga cross-local, no un detalle de estilo.
-- Las reglas de lotes (merge por vencimiento exacto, FIFO agrupando homónimas, fila en cero no se
-  borra, snapshots en el historial) están en [`../AGENTS.md`](../AGENTS.md) §6.
+- Las reglas de lotes (merge por nombre + unidad + vencimiento exacto al alta y al editar, FIFO
+  agrupando homónimas, fila en cero no se borra, snapshots en el historial) están en
+  [`../AGENTS.md`](../AGENTS.md) §6.
 - **La sesión de platos de una mesa se filtra en el service, no en la UI**
   (`MenuService.listarProducciones`): con `mesaId` devuelve `emptyList()` si la mesa no está OCUPADA
   o no tiene `fechaOcupacion`; en caso contrario, solo las producciones con
@@ -63,7 +64,8 @@ funcionando —Spring resuelve los beans por anotaciones, no por convención de 
 Unitarios con Mockito, **sin conexión a la base**: se mockean los repositories y `JwtService`.
 El redondeo de cantidades está fijado por `CantidadesTest`, `InventarioServiceRedondeoTest` (merge,
 agregado homónimo, descuento con stock justo) y el caso `requerido de receta...` de
-`MenuServicePrepararTest`.
+`MenuServicePrepararTest`. La fusión de filas al editar (lotes sumados/mudados, recetas reenganchadas,
+auditoría viva) está fijada por `InventarioServiceMergeEdicionTest`.
 `CoreServiceApplicationTests.contextLoads` está `@Disabled` a propósito — exigir Neon en cada
 corrida es justamente lo que se quiere evitar. Trampas del stack:
 

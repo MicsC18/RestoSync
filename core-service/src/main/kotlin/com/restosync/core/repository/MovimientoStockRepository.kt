@@ -9,6 +9,9 @@ import java.time.LocalDateTime
 interface MovimientoStockRepository : JpaRepository<MovimientoStock, Long> {
     fun findByInsumoIdOrderByFechaHoraDesc(insumoId: Long): List<MovimientoStock>
     fun findByLoteId(loteId: Long): List<MovimientoStock>
+
+    /** Auditoría de una fila concreta: al fusionar filas se reengancha a la fila que sobrevive. */
+    fun findByInsumoId(insumoId: Long): List<MovimientoStock>
     fun deleteByInsumoId(insumoId: Long)
     fun countByUsuarioId(usuarioId: Long): Long
 
