@@ -96,6 +96,7 @@ inglés. No introducir labels en inglés en componentes.
 | Módulo | Comando |
 |---|---|
 | `core-service` | `.\gradlew.bat compileKotlin` y `.\gradlew.bat test` (unitarios, sin DB) |
+| `core-service` (HTTP) | `npx --yes newman run core-service/postman/RestoSync-API.postman_collection.json` (colección Postman/Newman de JWT/RBAC/X-Local-Id; requiere el core levantado con perfil local + seed demo) |
 | `restosync-front` | `npx tsc --noEmit` y `npm run build` |
 | `restosync-ia` | `pytest -q` |
 

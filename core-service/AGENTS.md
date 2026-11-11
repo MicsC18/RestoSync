@@ -66,6 +66,12 @@ El redondeo de cantidades está fijado por `CantidadesTest`, `InventarioServiceR
 agregado homónimo, descuento con stock justo) y el caso `requerido de receta...` de
 `MenuServicePrepararTest`. La fusión de filas al editar (lotes sumados/mudados, recetas reenganchadas,
 auditoría viva) está fijada por `InventarioServiceMergeEdicionTest`.
+La capa HTTP que los unitarios no ejercitan (401/403/400 reales) se verifica con la colección
+Postman/Newman `postman/RestoSync-API.postman_collection.json` (27 requests de JWT, RBAC y
+X-Local-Id, con setup y cleanup propios; re-corrible contra el core levantado con perfil local y
+seed demo): `npx --yes newman run core-service/postman/RestoSync-API.postman_collection.json`
+desde la raíz. El 401 de "sin token / token inválido" lo fija el `HttpStatusEntryPoint` de
+`SecurityConfig`; sin él Spring devuelve 403 y la colección lo detecta.
 `CoreServiceApplicationTests.contextLoads` está `@Disabled` a propósito — exigir Neon en cada
 corrida es justamente lo que se quiere evitar. Trampas del stack:
 

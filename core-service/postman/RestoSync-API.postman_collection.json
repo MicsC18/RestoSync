@@ -1,0 +1,573 @@
+{
+  "info": {
+    "name": "RestoSync — Seguridad API (JWT · RBAC · X-Local-Id)",
+    "description": "Pruebas de integración HTTP sobre el core levantado (http://localhost:8080, perfil local + seed demo).\n\nCorrer con Newman (no requiere la app Postman):\n  newman run core-service/postman/RestoSync-API.postman_collection.json\n\nOpcional: --env-var baseUrl=http://localhost:8080 --env-var jwtSecret=<secreto del perfil local>\n(para que el caso 'token vencido' firme con la clave real; sin eso, igual se rechaza por firma).\n\nRequiere el seed demo: admin@lafarola.com / 123456 y gerente@lafarola.com / 123456, y al menos dos locales.\nLa colección es re-corrible: crea sus propios datos de prueba y los limpia al final.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "adminEmail", "value": "admin@lafarola.com" },
+    { "key": "adminPassword", "value": "123456" },
+    { "key": "gerenteEmail", "value": "gerente@lafarola.com" },
+    { "key": "gerentePassword", "value": "123456" },
+    { "key": "jwtSecret", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "gerenteToken", "value": "" },
+    { "key": "localId", "value": "" },
+    { "key": "otroLocalId", "value": "" },
+    { "key": "gerenteLocalId", "value": "" },
+    { "key": "localAjenoAlGerente", "value": "" },
+    { "key": "localInactivoId", "value": "" },
+    { "key": "insumoGerenteId", "value": "" },
+    { "key": "insumoAisladoId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00 · Setup",
+      "item": [
+        {
+          "name": "Login admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"contrasena\": \"{{adminPassword}}\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login admin 200 con token', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.collectionVariables.set('adminToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login gerente",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{gerenteEmail}}\",\n  \"contrasena\": \"{{gerentePassword}}\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login gerente 200 con token', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.collectionVariables.set('gerenteToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me admin (rol y email del token)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 y el token identifica al admin', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const me = pm.response.json();",
+                  "    pm.expect(me.email).to.eql(pm.collectionVariables.get('adminEmail'));",
+                  "    pm.expect(me.rol).to.eql('ADMIN_RESTAURANTE');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me gerente (local fijo del token)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{gerenteToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200, rol gerente y local asignado', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const me = pm.response.json();",
+                  "    pm.expect(me.rol).to.eql('GERENTE_LOCAL');",
+                  "    pm.expect(me.localId).to.not.be.null;",
+                  "});",
+                  "pm.collectionVariables.set('gerenteLocalId', pm.response.json().localId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Locales del admin (guarda ids para los casos)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/locales", "host": ["{{baseUrl}}"], "path": ["api", "v1", "locales"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 y al menos dos locales (seed demo)', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().length).to.be.at.least(2);",
+                  "});",
+                  "const locales = pm.response.json();",
+                  "pm.collectionVariables.set('localId', locales[0].id);",
+                  "pm.collectionVariables.set('otroLocalId', locales[1].id);",
+                  "const fijo = Number(pm.collectionVariables.get('gerenteLocalId'));",
+                  "pm.collectionVariables.set('localAjenoAlGerente', fijo === locales[0].id ? locales[1].id : locales[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear local inactivo (para el caso 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/locales", "host": ["{{baseUrl}}"], "path": ["api", "v1", "locales"] },
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Local inactivo Postman\",\n  \"activo\": false\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 y queda inactivo', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(pm.response.json().activo).to.be.false;",
+                  "});",
+                  "pm.collectionVariables.set('localInactivoId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 · JWT",
+      "item": [
+        {
+          "name": "Sin token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('sin Authorization el core responde 401', () => pm.response.to.have.status(401));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Token basura → 401",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer esto-no-es-un-jwt" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('token con formato inválido → 401', () => pm.response.to.have.status(401));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Token manipulado (payload cambiado) → 401",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenManipulado}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Toma el token válido y cambia el email del payload SIN re-firmar: la firma deja de coincidir.",
+                  "const partes = pm.collectionVariables.get('adminToken').split('.');",
+                  "let b64 = partes[1].replace(/-/g, '+').replace(/_/g, '/');",
+                  "while (b64.length % 4) b64 += '=';",
+                  "const payload = JSON.parse(CryptoJS.enc.Base64.parse(b64).toString(CryptoJS.enc.Utf8));",
+                  "payload.email = 'falsario@lafarola.com';",
+                  "const b64url = (s) => CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(s)).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                  "pm.collectionVariables.set('tokenManipulado', partes[0] + '.' + b64url(JSON.stringify(payload)) + '.' + partes[2]);"
+                ]
+              }
+            },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('payload alterado sin re-firmar → 401', () => pm.response.to.have.status(401));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Token firmado con otra clave → 401",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenOtraClave}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b64url = (s) => CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(s)).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                  "const h = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));",
+                  "const p = b64url(JSON.stringify({ email: 'falsario@lafarola.com', exp: Math.floor(Date.now() / 1000) + 3600 }));",
+                  "const firma = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(h + '.' + p, 'OtraClaveDePruebaDistintaALaDelCore1234567890')).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                  "pm.collectionVariables.set('tokenOtraClave', h + '.' + p + '.' + firma);"
+                ]
+              }
+            },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('firma con clave ajena → 401', () => pm.response.to.have.status(401));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Token vencido → 401",
+          "description": "Con --env-var jwtSecret=<secreto del perfil local> se firma con la clave real y el 401 prueba la expiración. Sin eso, se firma con una clave ajena y el 401 prueba el rechazo de firma (mismo camino del filtro).",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tokenVencido}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const secreto = pm.collectionVariables.get('jwtSecret') || 'clave-ajena-solo-para-probar-rechazo';",
+                  "const b64url = (s) => CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(s)).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                  "const h = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));",
+                  "const p = b64url(JSON.stringify({ email: pm.collectionVariables.get('adminEmail'), exp: Math.floor(Date.now() / 1000) - 3600 }));",
+                  "const firma = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(h + '.' + p, secreto)).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                  "pm.collectionVariables.set('tokenVencido', h + '.' + p + '.' + firma);"
+                ]
+              }
+            },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('token con exp en el pasado → 401', () => pm.response.to.have.status(401));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Token válido → 200",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "me"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('token válido del login → 200', () => {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json().email).to.eql(pm.collectionVariables.get('adminEmail'));",
+              "});"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 · RBAC",
+      "item": [
+        {
+          "name": "Gerente lista cuentas de gerente → 403",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{gerenteToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/cuentas-gerentes", "host": ["{{baseUrl}}"], "path": ["api", "v1", "cuentas-gerentes"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('gerente en endpoint de admin → 403', () => pm.response.to.have.status(403));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Admin lista cuentas de gerente → 200",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/cuentas-gerentes", "host": ["{{baseUrl}}"], "path": ["api", "v1", "cuentas-gerentes"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('admin en endpoint de admin → 200', () => {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json()).to.be.an('array');",
+              "});"
+            ] } }
+          ]
+        },
+        {
+          "name": "Gerente intenta crear gerente → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{gerenteToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/cuentas-gerentes", "host": ["{{baseUrl}}"], "path": ["api", "v1", "cuentas-gerentes"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"intruso@lafarola.com\",\n  \"contrasena\": \"123456\",\n  \"localId\": {{localId}}\n}" }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('gerente no puede crear cuentas → 403', () => pm.response.to.have.status(403));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Sin token en endpoint de admin → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/cuentas-gerentes", "host": ["{{baseUrl}}"], "path": ["api", "v1", "cuentas-gerentes"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('sin token → 401 (antes que el 403 de rol)', () => pm.response.to.have.status(401));"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 · X-Local-Id",
+      "item": [
+        {
+          "name": "Admin sin header → 400",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('admin sin X-Local-Id → 400', () => pm.response.to.have.status(400));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Admin con local ajeno/inexistente → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "X-Local-Id", "value": "999999" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('local fuera del restaurante → 403', () => pm.response.to.have.status(403));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Admin con local inactivo → 400",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "X-Local-Id", "value": "{{localInactivoId}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('local inactivo → 400', () => pm.response.to.have.status(400));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Admin con local propio → 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "X-Local-Id", "value": "{{localId}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('local propio → 200 con lista', () => {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.json()).to.be.an('array');",
+              "});"
+            ] } }
+          ]
+        },
+        {
+          "name": "Gerente crea insumo con header ajeno (va a su local fijo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{gerenteToken}}" },
+              { "key": "X-Local-Id", "value": "{{localAjenoAlGerente}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] },
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Prueba Postman gerente\",\n  \"cantidad\": 1,\n  \"unidadMedida\": \"unidad\",\n  \"diasRestantes\": 5\n}" }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('el gerente puede crear aunque el header apunte a otro local → 200', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('insumoGerenteId', pm.response.json().id);"
+            ] } }
+          ]
+        },
+        {
+          "name": "Gerente lista con header ajeno y ve su insumo (header ignorado)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{gerenteToken}}" },
+              { "key": "X-Local-Id", "value": "{{localAjenoAlGerente}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200 y el insumo creado aparece: el header fue ignorado', () => {",
+              "    pm.response.to.have.status(200);",
+              "    const nombres = pm.response.json().map((i) => i.nombre);",
+              "    pm.expect(nombres).to.include('Prueba Postman gerente');",
+              "});"
+            ] } }
+          ]
+        },
+        {
+          "name": "Cleanup: borrar insumo del gerente",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{gerenteToken}}" },
+              { "key": "X-Local-Id", "value": "{{localAjenoAlGerente}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos/{{insumoGerenteId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos", "{{insumoGerenteId}}"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('borrado 204', () => pm.response.to.have.status(204));"
+            ] } }
+          ]
+        },
+        {
+          "name": "Admin crea insumo en el local A",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "X-Local-Id", "value": "{{localId}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] },
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Aislamiento Postman\",\n  \"cantidad\": 1,\n  \"unidadMedida\": \"unidad\",\n  \"diasRestantes\": 5\n}" }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('alta en local A → 200', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('insumoAisladoId', pm.response.json().id);"
+            ] } }
+          ]
+        },
+        {
+          "name": "Admin lista local B: el insumo de A no aparece",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "X-Local-Id", "value": "{{otroLocalId}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('aislamiento entre locales: el insumo de A no está en B', () => {",
+              "    pm.response.to.have.status(200);",
+              "    const nombres = pm.response.json().map((i) => i.nombre);",
+              "    pm.expect(nombres).to.not.include('Aislamiento Postman');",
+              "});"
+            ] } }
+          ]
+        },
+        {
+          "name": "Cleanup: borrar insumo de aislamiento",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "X-Local-Id", "value": "{{localId}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/insumos/{{insumoAisladoId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "insumos", "{{insumoAisladoId}}"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('borrado 204', () => pm.response.to.have.status(204));"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 · Cleanup",
+      "item": [
+        {
+          "name": "Borrar local inactivo de prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/locales/{{localInactivoId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "locales", "{{localInactivoId}}"] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('local de prueba borrado 204', () => pm.response.to.have.status(204));"
+            ] } }
+          ]
+        }
+      ]
+    }
+  ]
+}
