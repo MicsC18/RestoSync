@@ -18,7 +18,7 @@ type Mesa = {
   posicionX?: number | null;
   posicionY?: number | null;
   estado: EstadoMesa;
-  /** Inicio de la ocupación actual (solo con estado OCUPADA; Plan-Mesas-Dictado §1). */
+  /** Inicio de la ocupación actual (solo con estado OCUPADA). */
   fechaOcupacion?: string | null;
 };
 
@@ -78,7 +78,7 @@ export default function MesasPage() {
   const [producciones, setProducciones] = useState<Produccion[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
 
-  // Confirmación informativa al liberar una mesa con platos visibles (§1.4).
+  // Confirmación informativa al liberar una mesa con platos visibles.
   const [mesaALiberar, setMesaALiberar] = useState<{ mesa: Mesa; estado: EstadoMesa } | null>(null);
 
   // Modal alta/edición.
@@ -131,7 +131,7 @@ export default function MesasPage() {
   const ocupadaSeleccionada = seleccionada?.estado === 'OCUPADA';
 
   // Platos actuales de la mesa seleccionada: solo se consultan si está OCUPADA
-  // (la regla dura la tiene el core filtrando por fechaOcupacion, Plan-Mesas-Dictado §1).
+  // (la regla dura la tiene el core filtrando por fechaOcupacion).
   useEffect(() => {
     if (!token || localActivoId == null || seleccionadaId == null || !ocupadaSeleccionada) {
       setProducciones([]);
@@ -297,7 +297,7 @@ export default function MesasPage() {
   const cambiarEstado = (mesa: Mesa, estado: EstadoMesa) => {
     if (mesa.estado === estado) return;
     // Liberar una mesa ocupada que tiene platos actuales muestra una confirmación
-    // informativa; el PUT se ejecuta recién al confirmar (§1.4 del Plan-Mesas-Dictado).
+    // informativa; el PUT se ejecuta recién al confirmar.
     if (mesa.estado === 'OCUPADA' && mesa.id === seleccionadaId && producciones.length > 0) {
       setMesaALiberar({ mesa, estado });
       return;

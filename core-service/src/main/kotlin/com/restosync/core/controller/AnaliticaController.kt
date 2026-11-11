@@ -6,7 +6,7 @@ import com.restosync.core.service.AnaliticaService
 import org.springframework.web.bind.annotation.*
 
 /**
- * Historial agregado del local para el monitor predictivo (contrato §1.1 del Plan-IA).
+ * Historial agregado del local para el monitor predictivo.
  * El frontend lo reenvía tal cual a `restosync-ia`; el core no orquesta la IA.
  */
 @RestController

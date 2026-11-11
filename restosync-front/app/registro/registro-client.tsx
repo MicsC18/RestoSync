@@ -9,13 +9,14 @@ import {
   CATEGORIAS_BASE,
   TIPOS_UNIDAD,
   UNIDADES_POR_TIPO,
+  etiquetaUnidad,
   normalizarUnidad,
   tipoDeUnidad,
   unidadPorDefecto,
   type TipoUnidad,
 } from '@/lib/insumos';
 import { redondearCantidad } from '@/lib/numero';
-import { procesarDictado, type ItemDictado } from '@/lib/dictado';
+import { procesarDictado, normalizarItemsCompra, type ItemCompra } from '@/lib/dictado';
 
 type SpeechRecognitionAlternative = { transcript: string };
 
@@ -43,16 +44,8 @@ type SpeechRecognitionInstance = {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
-type ProductoDetectado = {
-  nombre: string;
-  categoria: string;
-  icono: string;
-  cantidad: number;
-  /** Unidad real del ítem; la trae la IA, el mock o el parser local (§2.5). */
-  unidadMedida: string;
-  diasRestantes: number;
-  estado: 'Cerrado' | 'Abierto';
-};
+/** Mismo contrato que el dictado: ticket y audio producen ítems intercambiables. */
+type ProductoDetectado = ItemCompra;
 
 export default function RegistroClient() {
   const { token, checking, localActivoId } = useAuthSession();
@@ -76,7 +69,7 @@ export default function RegistroClient() {
   // Aviso sutil del dictado (corte por silencio, uso del parser local): no es error.
   const [avisoDictado, setAvisoDictado] = useState('');
 
-  // Instancia viva del reconocedor: la manipulan los botones empezar/terminar (§2.2).
+  // Instancia viva del reconocedor: la manipulan los botones empezar/terminar.
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   // True cuando el stop() lo pidió el usuario; evita el aviso de "se cortó sola".
   const paradaManualRef = useRef(false);
@@ -132,17 +125,9 @@ export default function RegistroClient() {
         );
       }
 
-      const data: { itemsEncontrados?: ProductoDetectado[] } =
-        await response.json();
-      setProductos(
-        Array.isArray(data.itemsEncontrados)
-          ? data.itemsEncontrados.map((item) => ({
-              ...item,
-              // Tickets: si Gemini no informó la unidad (o trajo una legacy), se normaliza (§2.5).
-              unidadMedida: normalizarUnidad(item.unidadMedida),
-            }))
-          : []
-      );
+      const data: { itemsEncontrados?: unknown } = await response.json();
+      // Mismo normalizador que el dictado: defaults del contrato y envase → cantidad.
+      setProductos(normalizarItemsCompra(data.itemsEncontrados));
 
     } catch (error: unknown) {
       console.error(
@@ -190,7 +175,7 @@ export default function RegistroClient() {
 
     recognition.lang = 'es-AR';
     // Grabación continua con resultado provisorio: acumula varias frases hasta
-    // que el usuario presiona "Terminar de grabar" (§2.2).
+    // que el usuario presiona "Terminar de grabar".
     recognition.continuous = true;
     recognition.interimResults = true;
 
@@ -243,7 +228,7 @@ export default function RegistroClient() {
     recognitionRef.current?.stop();
   };
 
-  // Transforma el texto acumulado en ítems de inventario (IA con fallback local, §2.4).
+  // Transforma el texto acumulado en ítems de inventario (IA con fallback local).
   const procesarDictadoARevision = async () => {
     const texto = transcripcion.trim();
     if (!texto || grabando || procesandoDictado) return;
@@ -261,12 +246,8 @@ export default function RegistroClient() {
         return;
       }
 
-      // Normalizamos acá para garantizar `unidadMedida` incluso con respuestas viejas.
-      const nuevos: ProductoDetectado[] = items.map((item: ItemDictado) => ({
-        ...item,
-        unidadMedida: normalizarUnidad(item.unidadMedida),
-      }));
-      setProductos((actuales) => [...actuales, ...nuevos]);
+      // procesarDictado ya devuelve el contrato normalizado (mismo que el ticket).
+      setProductos((actuales) => [...actuales, ...items]);
 
       if (fuente === 'local') {
         setAvisoDictado(
@@ -826,7 +807,7 @@ export default function RegistroClient() {
                             ...UNIDADES_POR_TIPO[tipoDeUnidad(prod.unidadMedida)],
                             prod.unidadMedida,
                           ])).filter(Boolean).map((unidad) => (
-                            <option key={unidad} value={unidad}>{unidad}</option>
+                            <option key={unidad} value={unidad}>{etiquetaUnidad(unidad)}</option>
                           ))}
                         </select>
                       </div>

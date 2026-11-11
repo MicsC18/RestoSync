@@ -22,7 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
- * Tests mínimos de Fase 6 — ABM de gerentes (sin base de datos):
+ * Tests mínimos del ABM de gerentes (sin base de datos):
  * solo el Admin opera, email único y normalizado, local del mismo restaurante,
  * contraseña cifrada y baja bloqueada si hay auditoría (FK NOT NULL).
  */

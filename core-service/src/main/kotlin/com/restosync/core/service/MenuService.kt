@@ -32,10 +32,10 @@ import java.time.LocalDateTime
 /**
  * Menú por local: CRUD de platos con su receta y preparación con descuento de stock.
  *
- * Al preparar (§4.4) el stock de cada ingrediente se calcula y descuenta **agrupando las
- * filas homónimas** del local (una por vencimiento, §4.5) y consumiendo FIFO por
+ * Al preparar, el stock de cada ingrediente se calcula y descuenta **agrupando las
+ * filas homónimas** del local (una por vencimiento) y consumiendo FIFO por
  * `fechaVencimiento`. Si se indica una mesa, la preparación queda asociada a ella
- * (puente con el mapa de mesas de Fase 4) y la mesa pasa a OCUPADA.
+ * (puente con el mapa de mesas) y la mesa pasa a OCUPADA.
  */
 @Service
 class MenuService(
@@ -125,7 +125,7 @@ class MenuService(
     }
 
     // =========================
-    // PREPARAR (§4.4)
+    // PREPARAR
     // =========================
 
     @Transactional
@@ -145,7 +145,7 @@ class MenuService(
         }
 
         // Agrupar los requisitos por nombre normalizado: varias filas homónimas (una por
-        // vencimiento) son un mismo ingrediente a efectos de stock (§4.4).
+        // vencimiento) son un mismo ingrediente a efectos de stock.
         val grupos = LinkedHashMap<String, GrupoRequisito>()
         for (linea in lineas) {
             val insumo = linea.insumo
@@ -237,7 +237,7 @@ class MenuService(
         val local = localContextService.resolverLocal(principal, localIdHeader)
         val producciones = if (mesaId != null) {
             val mesa = mesaService.mesaDelLocal(local, mesaId)
-            // Sesión de platos (Plan-Mesas-Dictado §1): una mesa solo muestra lo producido
+            // Sesión de platos: una mesa solo muestra lo producido
             // durante su ocupación actual. Al liberarse la marca queda null y el historial
             // sigue intacto en la tabla; sin mesaId (vista global) no se filtra nada.
             val desde = if (mesa.estado == EstadoMesa.OCUPADA) mesa.fechaOcupacion else null

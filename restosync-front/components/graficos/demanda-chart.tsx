@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { PALETA_RESTO, fechaDDMM, type DemandaItem } from '@/lib/prediccion';
 import { formatearCantidad } from '@/lib/numero';
+import { etiquetaUnidad } from '@/lib/insumos';
 
 const MAX_INSUMOS = 5;
 
@@ -24,7 +25,7 @@ type TooltipItem = {
 };
 
 /**
- * Proyección de demanda (Plan-IA §4.2): una línea por insumo seleccionado,
+ * Proyección de demanda: una línea por insumo seleccionado,
  * default top 5 por totalProyectado, eje X en dd/MM y tooltip con unidad.
  */
 export default function DemandaChart({ demanda }: { demanda: DemandaItem[] }) {
@@ -59,7 +60,8 @@ export default function DemandaChart({ demanda }: { demanda: DemandaItem[] }) {
     });
   };
 
-  const unidades = new Map(visibles.map((d) => [`insumo-${d.insumoId}`, d.unidadMedida] as const));
+  // Etiquetas legibles para el tooltip (el símbolo crudo queda solo en los datos).
+  const unidades = new Map(visibles.map((d) => [`insumo-${d.insumoId}`, etiquetaUnidad(d.unidadMedida)] as const));
 
   return (
     <div>

@@ -4,7 +4,7 @@ import jakarta.persistence.*
 import java.time.LocalDateTime
 
 /**
- * Un plato preparado para una mesa (puente Fase 3 ↔ Fase 4).
+ * Un plato preparado para una mesa (puente entre el menú y el mapa de mesas).
  *
  * Guarda snapshots de nombre (`platoNombre`, `mesaNombre`) para que el historial de
  * producción sobreviva aunque después se borre el plato o la mesa. Las FK `plato` y

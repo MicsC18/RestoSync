@@ -20,7 +20,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 /**
- * Tests de sesión de platos por mesa (Plan-Mesas-Dictado §1), sin base de datos:
+ * Tests de sesión de platos por mesa, sin base de datos:
  * las transiciones de estado mantienen la marca `fechaOcupacion` correcta —
  * entrar a OCUPADA abre sesión, liberarla la cierra, y una sesión en curso no se reinicia.
  */

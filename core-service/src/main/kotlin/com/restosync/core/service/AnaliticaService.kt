@@ -18,7 +18,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * Analítica para el monitor predictivo (§1.1 y §2.1 del Plan-IA): arma el historial
+ * Analítica para el monitor predictivo: arma el historial
  * agregado de un local (insumos + lotes, serie diaria de movimientos y producciones)
  * en el contrato exacto que consume el frontend y reenvía a `restosync-ia`.
  *
@@ -35,7 +35,7 @@ class AnaliticaService(
 
     private val formatoFecha: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-    /** Ventana en días: default 90; fuera de rango se acota a [7, 365], no da error (§1.1). */
+    /** Ventana en días: default 90; fuera de rango se acota a [7, 365], no da error. */
     internal fun acotarDias(dias: Int?): Int =
         (dias ?: DIAS_DEFAULT).coerceIn(DIAS_MINIMO, DIAS_MAXIMO)
 
@@ -112,7 +112,7 @@ class AnaliticaService(
                         .sumOf { it.cantidad })
                 )
             }
-            // Un día solo con AJUSTE no aporta información: no se emite fila en cero (§2.4.2).
+            // Un día solo con AJUSTE no aporta información: no se emite fila en cero.
             .filter { it.consumo != 0.0 || it.entradas != 0.0 || it.mermas != 0.0 }
             .sortedWith(compareBy({ it.fecha }, { it.insumoId }))
 

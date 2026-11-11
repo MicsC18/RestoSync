@@ -1,7 +1,7 @@
 package com.restosync.core.dto
 
 /**
- * Contratos de `GET /api/v1/analitica/historial` (§1.1 del Plan-IA).
+ * Contratos de `GET /api/v1/analitica/historial`.
  * Fechas siempre en formato `yyyy-MM-dd` (strings, sin dependencia del
  * serializador de `LocalDate`) para que el front y la IA las consuman tal cual.
  */
@@ -46,7 +46,7 @@ data class ProduccionDiariaDto(
     val cantidad: Double
 )
 
-/** Respuesta completa del historial agregado de un local (contrato §1.1). */
+/** Respuesta completa del historial agregado de un local. */
 data class HistorialResponse(
     val localId: Long,
     val dias: Int,

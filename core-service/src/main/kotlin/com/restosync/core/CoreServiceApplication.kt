@@ -110,15 +110,15 @@ class CoreServiceApplication {
                 // Unidades informales (Kilos, Docenas, Latas...) → notación profesional
                 // (kg/g/mg, l/ml, unidad). Idempotente: solo toca filas con valor legacy.
                 normalizarUnidadesMedida(entityManager)
-                // Plan-Mesas-Dictado §1.4: columnas nuevas nullable con ddl-auto=update llegan null.
+                // Columnas nuevas nullable con ddl-auto=update llegan null.
                 // Las mesas ya OCUPADA anteriores a `fechaOcupacion` abren sesión ahora (idempotente:
                 // solo toca las que tienen la marca nula, los reinicios no pisan sesiones activas).
                 mesaRepo.findAll()
                     .filter { it.estado == EstadoMesa.OCUPADA && it.fechaOcupacion == null }
                     .forEach { mesaRepo.save(it.copy(fechaOcupacion = LocalDateTime.now())) }
-                // Fase 2 (§4.5.7): insumos legacy sin lotes → lote inicial; agregados frescos en cada arranque.
+                // Insumos legacy sin lotes → lote inicial; agregados frescos en cada arranque.
                 inventarioService.migrarLotesLegacy()
-                // Filas viejas con lotes de varios vencimientos → una fila visible por vencimiento (§4.5).
+                // Filas viejas con lotes de varios vencimientos → una fila visible por vencimiento.
                 inventarioService.separarFilasPorVencimiento()
                 inventarioService.refrescarAgregados()
 
@@ -136,7 +136,7 @@ class CoreServiceApplication {
                     println(">>> Usuario admin creado: admin@lafarola.com / 123456")
                 }
 
-                // Fase 6: datos demo para probar todo el flujo sin cargar nada a mano.
+                // Datos demo para probar todo el flujo sin cargar nada a mano.
                 // Solo se siembra en el restaurante demo "La Farola" y solo si falta cada
                 // pieza (idempotente): nunca pisa datos reales ni cuentas de usuarios.
                 if (restaurante.nombre == "La Farola") {
@@ -144,7 +144,7 @@ class CoreServiceApplication {
                         restaurante, localPrincipal, usuarioRepo, localRepo, insumoRepo,
                         loteRepo, platoRepo, recetaRepo, mesaRepo, passwordEncoder, inventarioService
                     )
-                    // Plan-IA §2.3: historial sintético de 90 días para que el monitor
+                    // Historial sintético de 90 días para que el monitor
                     // predictivo tenga datos desde el primer arranque.
                     sembrarHistorialDemo(
                         localPrincipal, usuarioRepo, insumoRepo, platoRepo, recetaRepo, mesaRepo,
@@ -156,7 +156,7 @@ class CoreServiceApplication {
     }
 
     /**
-     * Seed demo (Fase 6): segundo local, gerente de local, insumos con lotes,
+     * Seed demo: segundo local, gerente de local, insumos con lotes,
      * platos con receta y mesas posicionadas. Cada bloque se ejecuta solo si la
      * pieza no existe todavía, así los reinicios no duplican ni pisan nada.
      */
@@ -200,7 +200,7 @@ class CoreServiceApplication {
             println(">>> Usuario gerente demo creado: gerente@lafarola.com / 123456")
         }
 
-        // Insumos con su lote inicial (un vencimiento por fila, §4.5).
+        // Insumos con su lote inicial (un vencimiento por fila).
         if (insumoRepo.findByLocalId(localPrincipal.id).isEmpty()) {
             val hoy = LocalDate.now()
             data class DemoInsumo(
@@ -281,7 +281,7 @@ class CoreServiceApplication {
             println(">>> Platos demo creados con receta en ${localPrincipal.nombre}")
         }
 
-        // Mesas posicionadas en el mapa (porcentajes del canvas, Fase 4).
+        // Mesas posicionadas en el mapa (porcentajes del canvas).
         if (mesaRepo.findByLocalIdOrderByNombreAsc(localPrincipal.id).isEmpty()) {
             data class DemoMesa(val nombre: String, val capacidad: Int, val x: Double, val y: Double)
             val mesas = listOf(
@@ -308,7 +308,7 @@ class CoreServiceApplication {
     }
 
     /**
-     * Seed histórico sintético (Plan-IA §2.3): 90 días hacia atrás de producciones y
+     * Seed histórico sintético: 90 días hacia atrás de producciones y
      * movimientos en el local principal de "La Farola", con patrón semanal determinístico
      * (viernes y sábado ×1.6, domingo ×1.3, resto ×1.0) y variación pseudoaleatoria con
      * semilla fija `Random(42)` para que sea reproducible entre arranques.

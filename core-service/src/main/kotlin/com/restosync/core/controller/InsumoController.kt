@@ -20,7 +20,7 @@ class InsumoController(
         return inventarioService.listarInsumos(SecurityUtils.principalActual(), localIdHeader)
     }
 
-    /** Alta por IA/dictado (principal) o manual (auxiliar). Aplica merge §4.5. */
+    /** Alta por IA/dictado (principal) o manual (auxiliar). Aplica merge por vencimiento. */
     @PostMapping
     fun crearInsumo(
         @RequestBody request: InsumoRequest,

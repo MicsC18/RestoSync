@@ -11,7 +11,7 @@ export type ItemEscaneadoMock = {
   categoria: string;
   icono: string;
   cantidad: number;
-  /** Unidad real del ítem (Plan-Mesas-Dictado §2.5: el mock también la trae). */
+  /** Unidad real del ítem (el mock también la trae). */
   unidadMedida: string;
   diasRestantes: number;
   estado: 'Cerrado' | 'Abierto';
@@ -77,7 +77,7 @@ export function usarMockIa(): boolean {
   return process.env.NEXT_PUBLIC_USE_IA_MOCK === 'true';
 }
 
-// ---------- Mock del monitor predictivo (Plan-IA §4.1) ----------
+// ---------- Mock del monitor predictivo ----------
 
 function isoLocal(fecha: Date): string {
   const mes = String(fecha.getMonth() + 1).padStart(2, '0');

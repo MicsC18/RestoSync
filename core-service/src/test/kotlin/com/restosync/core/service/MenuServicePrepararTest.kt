@@ -29,7 +29,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * Tests mínimos de Fase 6 — preparar plato (sin base de datos):
+ * Tests mínimos de preparar plato (sin base de datos):
  * stock insuficiente no descuenta nada, plato inactivo/ajeno se rechaza,
  * y las filas homónimas se agrupan en un único descuento FIFO por nombre.
  */
@@ -120,7 +120,7 @@ class MenuServicePrepararTest {
     @Test
     fun `filas homonimas se agrupan en un solo descuento FIFO`() {
         stubBase()
-        // Dos filas del mismo ingrediente (vencimientos distintos, §4.5): 1 Kg + 1 Kg.
+        // Dos filas del mismo ingrediente (vencimientos distintos): 1 Kg + 1 Kg.
         val otraFila = pollo.copy(id = 101)
         Mockito.`when`(recetaInsumoRepository.findByPlatoId(5L)).thenReturn(
             listOf(
@@ -172,7 +172,7 @@ class MenuServicePrepararTest {
         assertEquals(0.3, cantidadCaptor.value)
     }
 
-    // ==================== listarProducciones: sesión de platos (Plan-Mesas-Dictado §1) ====================
+    // ==================== listarProducciones: sesión de platos ====================
 
     private val mesaBase = Mesa(id = 7, nombre = "Mesa 1", estado = EstadoMesa.LIBRE, local = local)
 

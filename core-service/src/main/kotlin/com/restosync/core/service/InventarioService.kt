@@ -25,13 +25,15 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 /**
- * Inventario por local: alta con merge (§4.5 del plan), CRUD correctivo,
+ * Inventario por local: alta con merge por vencimiento, CRUD correctivo,
  * lotes y movimientos de stock auditables.
  *
- * Regla de merge: mismo nombre (normalizado) + mismo vencimiento en el local → suma
- * cantidad a la fila existente. Mismo nombre con vencimiento distinto → fila nueva e
- * independiente, con su propio lote y vencimiento visible. `cantidad`, `diasRestantes` y
- * `vencimiento` del insumo son agregados de visualización derivados de sus lotes.
+ * Regla de merge: mismo nombre (normalizado) + misma unidad + mismo vencimiento en el local
+ * → suma cantidad a la fila existente. Mismo nombre con vencimiento distinto → fila nueva e
+ * independiente, con su propio lote y vencimiento visible. Aplica al alta y también a la
+ * edición: si al corregir una fila queda igual a otra, se fusionan en la existente (lotes,
+ * recetas y auditoría incluidos). `cantidad`, `diasRestantes` y `vencimiento` del insumo son
+ * agregados de visualización derivados de sus lotes.
  *
  * Toda cantidad que se persiste o se compara pasa por `redondear` (dos decimales): las sumas y
  * restas de `Double` acumulan ruido (`12.3 - 3.1 = 9.200000000000001`) y ese ruido se guardaba en
@@ -80,7 +82,7 @@ class InventarioService(
         return insumoRepository.findByLocalId(local.id)
     }
 
-    /** Alta principal (IA / dictado) y auxiliar (manual). Aplica merge §4.5. */
+    /** Alta principal (IA / dictado) y auxiliar (manual). Aplica merge por vencimiento. */
     @Transactional
     fun registrarCompra(principal: UsuarioPrincipal, localIdHeader: Long?, request: InsumoRequest): Insumo {
         val local = localContextService.resolverLocal(principal, localIdHeader)
@@ -98,12 +100,14 @@ class InventarioService(
         }
         val fechaVencimiento = LocalDate.now().plusDays(diasRestantes.toLong())
 
-        // Merge (§4.5): entre las filas homónimas, solo suma la que ya tenga un lote
+        // Merge: entre las filas homónimas, solo suma la que ya tenga un lote
         // con este vencimiento exacto. Si el vencimiento es distinto → fila nueva, visible,
         // con su propio lote (no se mezcla con el stock de otro vencimiento).
         var existente: Insumo? = null
         var lotePrevio: Lote? = null
         for (candidato in insumoRepository.findByLocalIdAndNombreIgnoreCase(local.id, nombre)) {
+            // Magnitudes distintas no se suman: "Harina" en kg y en l son stocks separados.
+            if (request.unidadMedida != null && !request.unidadMedida.equals(candidato.unidadMedida, ignoreCase = true)) continue
             val lote = loteRepository.findByInsumoIdAndFechaVencimiento(candidato.id, fechaVencimiento)
             if (lote != null) {
                 existente = candidato
@@ -156,7 +160,7 @@ class InventarioService(
         val local = localContextService.resolverLocal(principal, localIdHeader)
         val insumo = insumoDelLocal(local, id)
 
-        // El mismo nombre con distinto vencimiento es válido (filas independientes, §4.5);
+        // El mismo nombre con distinto vencimiento es válido (filas independientes);
         // no se rechaza el renombre a un nombre ya existente.
         val nombre = request.nombre.trim().ifBlank { insumo.nombre }
 
@@ -196,6 +200,20 @@ class InventarioService(
                 local = local,
                 motivo = "Corrección manual de insumo"
             )
+        }
+
+        // Merge al editar: si tras la corrección la fila quedó igual a otra del local (mismo
+        // nombre, misma unidad y mismo vencimiento en el lote más próximo), se fusionan en la
+        // existente para no dejar dos filas que son el mismo producto.
+        val proximo = loteRepository.findByInsumoIdOrderByFechaVencimientoAsc(actualizado.id).firstOrNull()
+        if (proximo != null) {
+            val destino = insumoRepository.findByLocalIdAndNombreIgnoreCase(local.id, actualizado.nombre)
+                .firstOrNull { candidato ->
+                    candidato.id != actualizado.id &&
+                        candidato.unidadMedida.equals(actualizado.unidadMedida, ignoreCase = true) &&
+                        loteRepository.findByInsumoIdAndFechaVencimiento(candidato.id, proximo.fechaVencimiento) != null
+                }
+            if (destino != null) return fusionarEnExistente(actualizado, destino, request, principal, local)
         }
         return actualizado
     }
@@ -323,7 +341,7 @@ class InventarioService(
     }
 
     // =========================
-    // DESCUENTO FIFO (§4.4)
+    // DESCUENTO FIFO
     // =========================
 
     /** Stock total disponible de un ingrediente agrupando las filas homónimas del local. */
@@ -335,7 +353,7 @@ class InventarioService(
 
     /**
      * Descuenta `cantidad` consumiendo FIFO por `fechaVencimiento` entre **todas** las filas
-     * homónimas del local (§4.4). Audita cada porción consumida con `tipo`/`motivo` y recalcula
+     * homónimas del local. Audita cada porción consumida con `tipo`/`motivo` y recalcula
      * los agregados de cada fila afectada. La fila que queda en cero **no se elimina**: las
      * recetas la referencian por id y la auditoría debe sobrevivir (solo se borran lotes vacíos).
      * Devuelve las filas afectadas con sus agregados ya actualizados.
@@ -386,7 +404,7 @@ class InventarioService(
     }
 
     // =========================
-    // MIGRACIÓN LEGACY (§4.5.7)
+    // MIGRACIÓN LEGACY
     // =========================
 
     /** Insumos viejos sin lotes → lote inicial con su cantidad y vencimiento estimado. */
@@ -419,7 +437,7 @@ class InventarioService(
     }
 
     /**
-     * Las filas creadas antes del fix de §4.5 pueden esconder lotes con vencimientos
+     * Las filas creadas antes del fix de merge pueden esconder lotes con vencimientos
      * distintos (la tabla mostraba solo el más próximo y el merge sumaba contra lotes
      * invisibles). Se separa en una fila por vencimiento para que todo quede visible.
      * Idempotente: tras la primera pasada cada fila tiene una sola fecha.
@@ -536,6 +554,79 @@ class InventarioService(
         } else {
             loteRepository.save(primero.copy(fechaVencimiento = fecha))
         }
+    }
+
+    /**
+     * Fusión al editar: la fila corregida quedó igual a otra del local (mismo nombre, misma
+     * unidad y mismo vencimiento en el lote más próximo). La fila existente sobrevive —igual
+     * que en el merge del alta— y absorbe todo: lotes (sumando los de igual vencimiento y
+     * mudando el resto), recetas (sin duplicar la línea si el plato ya la tenía) y auditoría.
+     */
+    private fun fusionarEnExistente(
+        editado: Insumo,
+        destino: Insumo,
+        request: InsumoRequest,
+        principal: UsuarioPrincipal,
+        local: Local
+    ): Insumo {
+        var transferido = 0.0
+        for (lote in loteRepository.findByInsumoIdOrderByFechaVencimientoAsc(editado.id)) {
+            transferido = redondear(transferido + lote.cantidad)
+            val mismoVencimiento = loteRepository.findByInsumoIdAndFechaVencimiento(destino.id, lote.fechaVencimiento)
+            if (mismoVencimiento != null) {
+                val sumado = loteRepository.save(
+                    mismoVencimiento.copy(cantidad = redondear(mismoVencimiento.cantidad + lote.cantidad))
+                )
+                movimientoRepository.findByLoteId(lote.id).forEach { movimiento ->
+                    movimiento.lote = sumado
+                    movimientoRepository.save(movimiento)
+                }
+                loteRepository.delete(lote)
+            } else {
+                loteRepository.save(lote.copy(insumo = destino))
+            }
+        }
+
+        // La historia de la fila que desaparece sigue viva bajo la fila que sobrevive.
+        movimientoRepository.findByInsumoId(editado.id).forEach { movimiento ->
+            movimiento.insumo = destino
+            movimientoRepository.save(movimiento)
+        }
+
+        // Las recetas apuntan por id: se reenganchan a la fila destino; si el plato ya tenía
+        // esa fila como ingrediente, las dos líneas se suman en una sola.
+        for (linea in recetaInsumoRepository.findByInsumoId(editado.id)) {
+            val yaEnElPlato = linea.plato?.id?.let { platoId ->
+                recetaInsumoRepository.findByPlatoId(platoId).firstOrNull { otra -> otra.insumo?.id == destino.id }
+            }
+            if (yaEnElPlato != null) {
+                recetaInsumoRepository.save(yaEnElPlato.copy(cantidad = redondear(yaEnElPlato.cantidad + linea.cantidad)))
+                recetaInsumoRepository.delete(linea)
+            } else {
+                recetaInsumoRepository.save(linea.copy(insumo = destino))
+            }
+        }
+
+        val fusionado = insumoRepository.save(
+            destino.copy(
+                categoria = request.categoria ?: destino.categoria,
+                icono = request.icono ?: destino.icono,
+                stockMinimo = request.stockMinimo ?: destino.stockMinimo,
+                estado = request.estado ?: destino.estado
+            )
+        )
+        insumoRepository.delete(editado)
+        val actualizado = recalcularAgregados(fusionado)
+        registrarMovimiento(
+            tipo = TipoMovimiento.AJUSTE,
+            cantidad = transferido,
+            insumo = actualizado,
+            lote = loteRepository.findByInsumoIdOrderByFechaVencimientoAsc(destino.id).firstOrNull(),
+            principal = principal,
+            local = local,
+            motivo = "Edición fusionada: mismo nombre, unidad y vencimiento; stock sumado a la fila existente"
+        )
+        return actualizado
     }
 
     /** `cantidad` = suma de lotes (redondeada); `diasRestantes`/`vencimiento` salen del lote más próximo (0 si no hay lotes). */

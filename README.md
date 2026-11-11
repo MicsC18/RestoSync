@@ -354,13 +354,5 @@ envía `X-Local-Id` en las rutas con scope de local.
 ## Documentación del proyecto
 
 - `proyecto.md`: enunciado original.
-- `Plan-General.md`: plan de las 6 fases del MVP, con los correctivos aplicados en cada una.
-- `Plan-IA.md`: plan del módulo analítico y predictivo.
-- `Plan-Mejoras.md`: auditoría y mejoras puntuales (seguridad de secretos, documentación, agentes).
-- `Plan-Mesas-Dictado.md`: sesión de platos por mesa y dictado por voz (diseño, reglas de transición
-  y verificación E2E).
 - `AGENTS.md`: convenciones y trampas conocidas para quien trabaje en el repo con un agente de IA
   (raíz y por módulo).
-
-Los tres `Plan-*.md` están gitignoreados a propósito: son documentos de trabajo locales, no
-entregables del repo.

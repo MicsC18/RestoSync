@@ -12,7 +12,7 @@ interface LoteRepository : JpaRepository<Lote, Long> {
 
     fun findByInsumoId(insumoId: Long): List<Lote>
 
-    /** Lote exacto para el merge por vencimiento (§4.5). */
+    /** Lote exacto para el merge por vencimiento. */
     fun findByInsumoIdAndFechaVencimiento(insumoId: Long, fechaVencimiento: LocalDate): Lote?
 
     fun existsByInsumoId(insumoId: Long): Boolean

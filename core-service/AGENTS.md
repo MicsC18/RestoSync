@@ -17,14 +17,13 @@ funcionando —Spring resuelve los beans por anotaciones, no por convención de 
 ## Reglas que no se pueden romper
 
 - **Nunca bindear una entidad JPA en un controller**: siempre DTO de request. Motivo histórico
-  concreto: bindear la entidad permitía inyectar `id`/`local` en el payload y pisar datos de otro local
-  (correctivo 1 de Fase 2 y correctivo 1 de Fase 3 de `Plan-General.md`).
+  concreto: bindear la entidad permitía inyectar `id`/`local` en el payload y pisar datos de otro local.
 - **Toda operación de negocio pasa por `LocalContextService`**: admin elige el local por header
   `X-Local-Id` (validado contra sus permisos), gerente queda fijo al local del claim. Un endpoint
   que saltee esto es una fuga cross-local, no un detalle de estilo.
-- Las reglas de lotes (merge por vencimiento exacto, FIFO agrupando homónimas, fila en cero no se
-  borra, snapshots en el historial) están en [`../AGENTS.md`](../AGENTS.md) §6 y en `Plan-General.md`
-  §4.4/§4.5.
+- Las reglas de lotes (merge por nombre + unidad + vencimiento exacto al alta y al editar, FIFO
+  agrupando homónimas, fila en cero no se borra, snapshots en el historial) están en
+  [`../AGENTS.md`](../AGENTS.md) §6.
 - **La sesión de platos de una mesa se filtra en el service, no en la UI**
   (`MenuService.listarProducciones`): con `mesaId` devuelve `emptyList()` si la mesa no está OCUPADA
   o no tiene `fechaOcupacion`; en caso contrario, solo las producciones con
@@ -55,8 +54,8 @@ funcionando —Spring resuelve los beans por anotaciones, no por convención de 
   agregan credenciales reales como default** al `application.properties` versionado, ni una clave
   de firma JWT de respaldo legible en el código. `JwtService` valida al arrancar: clave vacía o de
   menos de 32 bytes y el core **no levanta** (hay test que lo fija).
-- CORS: `CorsConfig.kt` autoriza los mismos orígenes que `restosync-ia/main.py` (alineados desde
-  Plan-Mejoras §5): `localhost:3000`, `127.0.0.1:3000`, `localhost:8080` y el patrón
+- CORS: `CorsConfig.kt` autoriza los mismos orígenes que `restosync-ia/main.py`:
+  `localhost:3000`, `127.0.0.1:3000`, `localhost:8080` y el patrón
   `192.168.*.*:3000` (red local, para probar el escaneo desde el teléfono). **Ambas listas se
   mantienen sincronizadas a mano**; si se cambia una, se cambia la otra.
 
@@ -65,7 +64,8 @@ funcionando —Spring resuelve los beans por anotaciones, no por convención de 
 Unitarios con Mockito, **sin conexión a la base**: se mockean los repositories y `JwtService`.
 El redondeo de cantidades está fijado por `CantidadesTest`, `InventarioServiceRedondeoTest` (merge,
 agregado homónimo, descuento con stock justo) y el caso `requerido de receta...` de
-`MenuServicePrepararTest`.
+`MenuServicePrepararTest`. La fusión de filas al editar (lotes sumados/mudados, recetas reenganchadas,
+auditoría viva) está fijada por `InventarioServiceMergeEdicionTest`.
 `CoreServiceApplicationTests.contextLoads` está `@Disabled` a propósito — exigir Neon en cada
 corrida es justamente lo que se quiere evitar. Trampas del stack:
 

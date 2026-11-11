@@ -10,8 +10,8 @@ Convenciones generales del proyecto: [`../AGENTS.md`](../AGENTS.md).
    `nombre`, `categoria`, `icono`, `cantidad`, `diasRestantes`, `unidadMedida` y `estado` fijo
    `"Cerrado"`.
 2. **Dictado de insumos** — `POST /api/v1/ia/dictar-insumos` (`main.py`, body `{ texto }`):
-   mismo contrato que tickets **más** `unidadMedida`, extraído del texto ("dos kilos de tomates"
-   → `2` / `"Kilos"`; `"Unidades"` si el dictado no indica ninguna). Un producto = un ítem (si
+   **mismo contrato y mismas reglas de extracción que tickets** (`REGLAS_ITEMS` compartida): la
+   misma compra produce los mismos ítems venga del camino que venga. Un producto = un ítem (si
    se repite, se suma), y un texto sin productos = lista vacía.
 3. **Monitor predictivo** — `POST /api/v1/ia/prediccion-demanda`: recibe el historial ya armado
    por el front en el body y devuelve demanda proyectada, mermas, compras e insights.
@@ -33,7 +33,7 @@ Convenciones generales del proyecto: [`../AGENTS.md`](../AGENTS.md).
   servicio sin consenso.
 - El servicio **no accede a la base de datos ni conoce roles/usuarios**; el historial llega en el
   body desde el navegador. Una propuesta de "conectar la IA a Postgres" o de "autenticar la IA" se
-  rechaza por diseño (ver `Plan-Mejoras.md` §6).
+  rechaza por diseño.
 
 ## Endpoints y CORS
 
@@ -44,17 +44,23 @@ Convenciones generales del proyecto: [`../AGENTS.md`](../AGENTS.md).
   el teléfono) **debe mantenerse sincronizada con `CorsConfig.kt` del core**: dos servicios con la
   misma política de orígenes, cambiada a mano.
 
-## Modelos de Gemini
+## Modelos de Gemini y reglas compartidas de extracción
 
-`escanear_ticket` y `dictar_insumos` recorren `modelos_candidatos` con fallback en cadena porque la
-cuota o disponibilidad de un modelo no está garantizada. Un modelo nuevo **se agrega al principio de
-la lista en **ambos endpoints** (hay dos listas copiadas, una por función: agregar un modelo a una
-y no a la otra deja los endpoints desalineados); nunca se deja un único modelo fijo. El `503` con
-clave ausente es intencional: el front tiene su flag `NEXT_PUBLIC_USE_IA_MOCK` para trabajar sin IA.
+`escanear_ticket` y `dictar_insumos` usan la cadena única `MODELOS_CANDIDATOS` vía
+`generar_con_fallback` porque la cuota o disponibilidad de un modelo no está garantizada. Un modelo
+nuevo **se agrega al principio de esa lista una sola vez** (antes había dos listas copiadas, una por
+función, y se desalineaban); nunca se deja un único modelo fijo. El `503` con clave ausente es
+intencional: el front tiene su flag `NEXT_PUBLIC_USE_IA_MOCK` para trabajar sin IA.
 
-La normalización **defensiva post-response** es obligatoria en los dos endpoints de extracción:
-`setdefault`/`or` por clave (`unidadMedida → "Unidades"`, `diasRestantes → 30`, `categoria →
-"Almacén"`, ítems sin `nombre` se descartan) porque el front depende del contrato completo.
+La extracción comparte el prompt `REGLAS_ITEMS`: nombre limpio sin cantidad/unidad/tamaño de envase;
+bultos × tamaño del envase → cantidad total en `kg/g/mg/l/ml` ("10 x Leche 1L" → 10 `l`, no 10
+unidades); `"unidad"` solo para contables sin medida; docena = 12; decimales aceptados. La
+normalización **defensiva post-response** `normalizar_items` es obligatoria en los dos endpoints:
+defaults por clave (`unidadMedida → "unidad"`, `diasRestantes → 30`, `categoria → "Almacén"`, ítems
+sin `nombre` se descartan), `aplicar_envase` pasa al cálculo cualquier tamaño que el modelo haya
+dejado en el nombre (y si la cantidad ya venía en unidad de medida, solo limpia el nombre: no
+re-multiplica) y capitaliza en sentence case. El front espeja esta regla en `lib/dictado.ts`
+(`normalizarItemsCompra` / `aplicarEnvase`): **si tocás una, tocá la otra**.
 
 ## Secretos
 

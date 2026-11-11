@@ -8,6 +8,7 @@ import {
   CATEGORIAS_BASE,
   TIPOS_UNIDAD,
   UNIDADES_POR_TIPO,
+  etiquetaUnidad,
   normalizarUnidad,
   tipoDeUnidad,
   unidadPorDefecto,
@@ -408,7 +409,7 @@ export default function InventarioPage() {
                       </td>
                       <td className="p-5">
                         <p className="font-black text-lg">
-                          {formatearCantidad(prod.stock)} <span className="text-sm font-semibold text-resto-acero">{prod.unidad}</span>
+                          {formatearCantidad(prod.stock)} <span className="text-sm font-semibold text-resto-acero">{etiquetaUnidad(prod.unidad)}</span>
                         </p>
                       </td>
                       <td className="p-5">
@@ -563,7 +564,7 @@ export default function InventarioPage() {
                     className="w-full rounded-xl border border-resto-acero/20 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-resto-oliva"
                   >
                     {opcionesUnidad.map((unidad) => (
-                      <option key={unidad} value={unidad}>{unidad}</option>
+                      <option key={unidad} value={unidad}>{etiquetaUnidad(unidad)}</option>
                     ))}
                   </select>
                 </div>

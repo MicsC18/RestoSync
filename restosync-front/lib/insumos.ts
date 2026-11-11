@@ -69,6 +69,23 @@ export function normalizarUnidad(unidad: string | null | undefined): string {
   return UNIDAD_LEGACY[limpia.toLowerCase()] ?? limpia
 }
 
+// Símbolo → palabra entera para mostrar en pantalla. Solo display: el backend,
+// los selects (value) y los payloads siguen usando el símbolo.
+const ETIQUETAS_UNIDAD: Record<string, string> = {
+  'kg': 'Kilos',
+  'g': 'Gramos',
+  'mg': 'Miligramos',
+  'l': 'Litros',
+  'ml': 'Mililitros',
+  'unidad': 'Unidad',
+}
+
+/** Etiqueta legible de una unidad; normaliza legacy y deja intactas las desconocidas. */
+export function etiquetaUnidad(unidad: string | null | undefined): string {
+  const simbolo = normalizarUnidad(unidad)
+  return ETIQUETAS_UNIDAD[simbolo] ?? simbolo
+}
+
 const ICONO_POR_CATEGORIA: Record<string, string> = {
   'Lácteos': '🥛',
   'Carnes': '🍗',

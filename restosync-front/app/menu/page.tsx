@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { apiUrl, authHeaders } from '@/lib/api';
 import { formatearCantidad } from '@/lib/numero';
+import { etiquetaUnidad } from '@/lib/insumos';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
 import Modal from '@/components/modal';
@@ -411,7 +412,7 @@ export default function MenuPage() {
                         <li key={linea.id} className="inline-flex items-center gap-1.5 rounded-full bg-resto-manteca border border-resto-ciruela/10 px-3 py-1 text-xs font-semibold">
                           <span>{linea.icono || '📦'}</span>
                           <span>{linea.insumoNombre}</span>
-                          <span className="text-resto-acero">· {formatearCantidad(linea.cantidad)} {linea.unidadMedida}</span>
+                          <span className="text-resto-acero">· {formatearCantidad(linea.cantidad)} {etiquetaUnidad(linea.unidadMedida)}</span>
                         </li>
                       ))}
                     </ul>
@@ -551,7 +552,7 @@ export default function MenuPage() {
                           >
                             {insumos.map((i) => (
                               <option key={i.id} value={i.id}>
-                                {i.icono || '📦'} {i.nombre} ({formatearCantidad(i.cantidad)} {i.unidadMedida || 'unidad'})
+                                {i.icono || '📦'} {i.nombre} ({formatearCantidad(i.cantidad)} {etiquetaUnidad(i.unidadMedida)})
                               </option>
                             ))}
                           </select>
@@ -563,7 +564,7 @@ export default function MenuPage() {
                             onChange={(e) => setLineas((actuales) => actuales.map((l, i) => i === index ? { ...l, cantidad: e.target.value } : l))}
                             className="w-24 rounded-xl border border-resto-acero/20 px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-resto-oliva"
                           />
-                          <span className="text-xs text-resto-acero w-20 truncate">{insumo?.unidadMedida || 'unidad'}</span>
+                          <span className="text-xs text-resto-acero w-20 truncate">{etiquetaUnidad(insumo?.unidadMedida)}</span>
                           <button
                             type="button"
                             onClick={() => setLineas((actuales) => actuales.filter((_, i) => i !== index))}
@@ -629,7 +630,7 @@ export default function MenuPage() {
                     {resultado.stockRestante.map((s) => (
                       <li key={s.nombre} className="flex justify-between">
                         <span>{s.nombre}</span>
-                        <span className="font-bold">{formatearCantidad(s.cantidadRestante)} {s.unidadMedida}</span>
+                        <span className="font-bold">{formatearCantidad(s.cantidadRestante)} {etiquetaUnidad(s.unidadMedida)}</span>
                       </li>
                     ))}
                   </ul>

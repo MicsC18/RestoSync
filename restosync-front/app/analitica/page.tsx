@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useAuthSession } from '@/lib/use-auth-session';
 import { apiUrl, authHeaders } from '@/lib/api';
 import { formatearCantidad } from '@/lib/numero';
+import { etiquetaUnidad } from '@/lib/insumos';
 import AppHeader from '@/components/app-header';
 
 type Insumo = {
@@ -253,7 +254,7 @@ export default function AnaliticaPage() {
                             {insumo.icono ?? '📦'} {insumo.nombre}
                           </span>
                           <span className="shrink-0 text-xs font-bold text-resto-manteca/70">
-                            {cantidadLegible(insumo.cantidad ?? 0)} {insumo.unidadMedida}
+                            {cantidadLegible(insumo.cantidad ?? 0)} {etiquetaUnidad(insumo.unidadMedida)}
                           </span>
                         </li>
                       ))}

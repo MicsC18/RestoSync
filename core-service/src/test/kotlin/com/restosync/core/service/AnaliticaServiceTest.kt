@@ -25,8 +25,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
- * Tests de Fase 1 del Plan-IA (§2.4) — `AnaliticaService` sin base de datos.
- * Cubren la agregación del contrato §1.1 (series dispersas, tipos de movimiento),
+ * Tests de `AnaliticaService` sin base de datos.
+ * Cubren la agregación del historial (series dispersas, tipos de movimiento),
  * el acotado de la ventana `dias` y el scope por local.
  *
  * Se usa el `LocalContextService` real sobre un `LocalRepository` mockeado (mismo

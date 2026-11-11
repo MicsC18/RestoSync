@@ -64,11 +64,10 @@ inglés. No introducir labels en inglés en componentes.
 
 ## 6. Reglas de dominio que no se pueden romper
 
-Detalle completo con su justificación en `Plan-General.md` §4.4/§4.5 (ver §8 abajo):
-
-- Alta de lote existente si coincide `local` + nombre normalizado + **vencimiento exacto**; se
-  acumula la cantidad. **Vencimiento distinto crea fila visible nueva** (no se oculta ni se
-  fusiona con otro lote).
+- Merge de filas equivalentes si coincide `local` + nombre normalizado + **misma unidad** +
+  **vencimiento exacto**; se acumula la cantidad. Aplica al **alta y a la edición**: si al corregir
+  una fila queda igual a otra, se fusionan en la existente (lotes, recetas y auditoría incluidas).
+  **Vencimiento distinto crea fila visible nueva** (no se oculta ni se fusiona con otro lote).
 - Al preparar una receta se agrupan las filas homónimas del insumo y se consume **FIFO por
   vencimiento**.
 - La fila en stock cero **no se borra**: queda como registro.
@@ -77,7 +76,7 @@ Detalle completo con su justificación en `Plan-General.md` §4.4/§4.5 (ver §8
 - **Sesión de platos por mesa**: con `mesaId`, `GET /producciones` devuelve solo lo preparado desde
   que la mesa pasó a OCUPADA (`Mesa.fechaOcupacion`) y nada si está Libre/Reservada. El filtro vive
   **solo en el core** (la UI no decide esto) y **no cambia** el `GET` global: el historial sigue
-  completo en dashboard y analítica. Ver `Plan-Mesas-Dictado.md` §1.
+  completo en dashboard y analítica.
 - **Cantidades a dos decimales**: toda `Double` que se persiste o se compara en el core pasa por
   `com.restosync.core.util.redondear` (y `cantidadLegible` para los mensajes). Las sumas y restas
   del dominio acumulan ruido de punto flotante (`0.1 + 0.2 = 0.30000000000000004`) que antes se
@@ -109,15 +108,6 @@ Detener `npm run dev` antes de `npm run build`: chocan en `.next`. Detener los d
 |---|---|
 | `README.md` | **guía rápida numerada (5 pasos)** para instalar y correr sin conocer el proyecto, más el detalle por módulo, configuraciones, endpoints y funcionalidades |
 | `proyecto.md` | enunciado del trabajo final |
-| `Plan-General.md` | las 6 fases del MVP con **más de 30 correctivos** registrados y las reglas de dominio (§4) |
-| `Plan-IA.md` | módulo predictivo: contratos, fórmulas (§1.3), capas |
-| `Plan-Mejoras.md` | auditoría de seguridad/documentación y su estado de implementación (Fases A–E) |
-| `Plan-Mesas-Dictado.md` | sesión de platos por mesa (transiciones de `fechaOcupacion`) y dictado por voz (motor híbrido + parser local) |
-
-**Los `Plan-*.md` están gitignoreados a propósito** (documentos de trabajo locales, no
-entregrables). Consecuencia operativa: `Glob` y `Grep` **no los ven** (el Grep los filtra por
-reglas de ignore), pero `Read` con la ruta exacta funciona. Las sesiones de trabajo se registran
-en esos archivos, **no** en el `README.md`.
 
 ## 9. Trampas conocidas
 
@@ -133,4 +123,4 @@ en esos archivos, **no** en el `README.md`.
 - Params de funciones Kotlin de test: no usar el nombre `con` (rompe el parser).
 - En Spring 7 leer `statusCode` (no `status`) de `ResponseStatusException`; matchers de Mockito
   revientan por unboxing contra `double` → usar `anyDouble()`.
-- Los `Plan-*.md` invisibles para `Glob`/`Grep` (ver §8).
+- Los archivos gitignoreados son invisibles para `Glob`/`Grep`; `Read` con la ruta exacta sí los ve.

@@ -10,7 +10,7 @@ interface InsumoRepository : JpaRepository<Insumo, Long> {
     fun findByLocalIsNull(): List<Insumo>
 
     /**
-     * Filas homónimas del local. Puede haber varias: una por cada vencimiento distinto (§4.5).
+     * Filas homónimas del local. Puede haber varias: una por cada vencimiento distinto.
      * El merge busca entre ellas la que tenga un lote con la fecha exacta.
      */
     fun findByLocalIdAndNombreIgnoreCase(localId: Long, nombre: String): List<Insumo>
