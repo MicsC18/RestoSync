@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * Salvapanta de `Plan-Mejoras.md` §2: la clave de firma JWT llega solo por configuración
+ * Salvapanta: la clave de firma JWT llega solo por configuración
  * (`restosync.jwt.secret`, alimentada por el perfil `local` o la variable `JWT_SECRET`) y el
  * core **no levanta** sin una clave válida de al menos 32 bytes. Con la clave vacía — el caso
  * de arrancar sin perfil, porque la propiedad se define como `${JWT_SECRET:}` — la construcción
@@ -96,7 +96,7 @@ class JwtServiceArranqueTest {
 
         val claims = jwt.parseClaims(token)
         val vigenciaMs = claims.expiration.time - claims.issuedAt.time
-        assertEquals(1000L * 60 * 60 * 12, vigenciaMs, "la validez debe ser 12 h (Plan-Mejoras.md §2.2.2)")
+        assertEquals(1000L * 60 * 60 * 12, vigenciaMs, "la validez debe ser 12 h")
     }
 
     @Test

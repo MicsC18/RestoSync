@@ -12,8 +12,9 @@ import {
 } from 'recharts';
 import type { CompraItem, PrioridadCompra } from '@/lib/prediccion';
 import { formatearCantidad } from '@/lib/numero';
+import { etiquetaUnidad } from '@/lib/insumos';
 
-// Colores por prioridad con la paleta existente (Plan-IA §4.2).
+// Colores por prioridad con la paleta existente.
 const COLOR_PRIORIDAD: Record<PrioridadCompra, string> = {
   ALTA: '#3A1124', // resto-ciruela
   MEDIA: '#E0A96D', // resto-dorado
@@ -30,7 +31,7 @@ function acortar(nombre: string) {
 }
 
 /**
- * Compras sugeridas (Plan-IA §4.2): barras horizontales con la cantidad
+ * Compras sugeridas: barras horizontales con la cantidad
  * sugerida del top 8, coloreadas por prioridad, tooltip con el motivo.
  */
 export default function ComprasChart({ compras }: { compras: CompraItem[] }) {
@@ -76,7 +77,7 @@ function ComprasTooltip({ active, payload }: { active?: boolean; payload?: Toolt
     <div className="bg-white border border-resto-ciruela/15 rounded-xl shadow-lg px-4 py-3 text-xs max-w-72">
       <p className="font-black mb-1">
         {compra.icono ?? '📦'} {compra.nombre}: <span className="text-resto-canela">{formatearCantidad(compra.cantidadSugerida)}</span>{' '}
-        {compra.unidadMedida}
+        {etiquetaUnidad(compra.unidadMedida)}
       </p>
       <p className="text-resto-acero font-bold mb-1">Prioridad {compra.prioridad.toLowerCase()}</p>
       <p className="text-resto-acero">{compra.motivo}</p>

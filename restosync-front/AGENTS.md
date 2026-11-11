@@ -29,9 +29,8 @@ recibe ninguna API key**). Componentes compartidos en `components/` (`app-header
 - **Toda pantalla autenticada empieza con `useAuthSession()`** y muestra el estado
   "Verificando sesión..." mientras `checking`; el hook ya redirige a `/login` si el token cayó
   (401 en `/me`). No crear un mecanismo de guarda alternativo.
-- El token vive en `localStorage` **por decisión consciente** y documentada (razones y riesgo
-  aceptado en `Plan-Mejoras.md` §2.3). No migrar a cookies `httpOnly` sin rediseñar CORS, login
-  y todas las pantallas autenticadas.
+- El token vive en `localStorage` **por decisión consciente**, con el riesgo aceptado. No migrar
+  a cookies `httpOnly` sin rediseñar CORS, login y todas las pantallas autenticadas.
 
 ## Navegación
 
@@ -60,7 +59,10 @@ Una ruta nueva se registra en `app-navigation.tsx` **y** en `app-header.tsx`; el
 - **Unidades en dos niveles (no regress)**: la magnitud (`Peso`/`Volumen`/`Unidades`) y su precisión
   (`kg/g/mg`, `l/ml`, `unidad`) viven en `lib/insumos.ts` (`TIPOS_UNIDAD`, `UNIDADES_POR_TIPO`,
   `tipoDeUnidad`, `unidadPorDefecto`, `normalizarUnidad`). El backend guarda solo el símbolo en
-  `unidadMedida`; el tipo se deriva. Alta/edición en `/inventario` y revisión en `/registro` usan
+  `unidadMedida`; el tipo se deriva. El display usa `etiquetaUnidad()` (palabra entera:
+  Kilos/Gramos/Miligramos/Litros/Mililitros/Unidad); los `value` de los selects y los payloads
+  siguen con el símbolo — no renderizar la unidad cruda. Alta/edición en `/inventario` y revisión
+  en `/registro` usan
   **dos selectores** encadenados. Las unidades informales (Docenas, Paquetes, Latas, Atados) se
   retiraron: no reponerlas en la UI ni en los prompts de la IA (la migración `normalizarUnidadesMedida`
   del core convierte los datos viejos).

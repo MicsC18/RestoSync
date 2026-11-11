@@ -13,7 +13,7 @@ import javax.crypto.SecretKey
 @Service
 class JwtService(
     // La clave llega desde restosync.jwt.secret (perfil local o variable JWT_SECRET).
-    // El valor real NUNCA va acá: ver Plan-Mejoras.md §2 y README.md "1. Backend".
+    // El valor real NUNCA va acá: ver README.md "1. Backend".
     @Value("\${restosync.jwt.secret}") private val secretKeyString: String
 ) {
 

@@ -7,7 +7,7 @@ import java.io.StringReader
 import java.util.Properties
 
 /**
- * Salvapanta de `Plan-Mejoras.md` §1: `application.properties` (versionado) no puede volver a
+ * Salvapanta: `application.properties` (versionado) no puede volver a
  * contener credenciales, ni siquiera como default de un placeholder. Sin credenciales de respaldo,
  * arrancar el core sin el perfil `local` ni las variables de entorno falla con
  * `Could not resolve placeholder 'DB_URL'` en vez de conectar contra una base sorpresa.

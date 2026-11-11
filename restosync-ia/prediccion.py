@@ -1,6 +1,6 @@
-"""Motor estadístico del monitor predictivo (Plan-IA §1.3).
+"""Motor estadístico del monitor predictivo.
 
-Función pura: recibe el historial agregado por el core (§1.1) y devuelve la
+Función pura: recibe el historial agregado por el core y devuelve la
 proyección de demanda, las mermas en riesgo y las compras sugeridas.
 No realiza llamadas de red ni tiene efectos secundarios.
 """
@@ -10,13 +10,13 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 
-# Constantes de las fórmulas de §1.3
+# Constantes de las fórmulas de proyección
 VENTANA_BASE_DIAS = 28       # ventana para consumoDiarioBase
 FACTOR_MINIMO = 0.5          # acotado inferior del factor por día de semana
 FACTOR_MAXIMO = 2.0          # acotado superior del factor por día de semana
 UMBRAL_MERMA = 0.01          # cantidadEnRiesgo mínima para reportar un lote
 TOPE_MERMAS_DIAS = 30        # horizonte máximo de consumo esperado para mermas
-DIAS_MINIMOS_HISTORIAL = 7   # span mínimo entre primer y último consumo (§1.2)
+DIAS_MINIMOS_HISTORIAL = 7   # span mínimo entre primer y último consumo
 
 
 def _parsear_fecha(valor) -> date:
@@ -34,7 +34,7 @@ def _ddmm(fecha: date) -> str:
 
 
 def hay_historial_suficiente(series: list) -> bool:
-    """§1.2: hay al menos un movimiento de consumo y >= 7 días entre el primero y el último."""
+    """Hay al menos un movimiento de consumo y >= 7 días entre el primero y el último."""
     fechas = [_parsear_fecha(f["fecha"]) for f in series if float(f.get("consumo", 0) or 0) > 0]
     if not fechas:
         return False
@@ -42,7 +42,7 @@ def hay_historial_suficiente(series: list) -> bool:
 
 
 def _consumo_diario_por_insumo(series: list, ventana: pd.DatetimeIndex) -> dict:
-    """Agrega el consumo diario por insumo con pandas y rellena de ceros los días sin actividad (§1.1)."""
+    """Agrega el consumo diario por insumo con pandas y rellena de ceros los días sin actividad."""
     df = pd.DataFrame(
         [
             {
@@ -161,7 +161,7 @@ _PRIORIDAD_ORDEN = {"ALTA": 0, "MEDIA": 1, "BAJA": 2}
 
 
 def calcular_prediccion(historial: dict, horizonte: int) -> dict:
-    """Aplica §1.3 sobre el HistorialResponse de §1.1.
+    """Aplica las fórmulas de proyección sobre el HistorialResponse del core.
 
     Devuelve: {"datosInsuficientes", "demanda", "mermas", "compras"}.
     """

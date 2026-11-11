@@ -7,7 +7,7 @@ import jakarta.persistence.*
 /**
  * Ítem del menú de un local. El precio es solo informativo (no hay cobros).
  * Los ingredientes viven en `RecetaInsumo`; al preparar se descuentan del stock
- * agrupando las filas homónimas del local (§4.4 del plan).
+ * agrupando las filas homónimas del local.
  */
 @Entity
 @Table(name = "platos")

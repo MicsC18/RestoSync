@@ -1,4 +1,4 @@
-"""Capa Gemini + fallback por reglas para las recomendaciones del monitor (Plan-IA §1.4).
+"""Capa Gemini + fallback por reglas para las recomendaciones del monitor.
 
 `generar_insights` recibe el resumen ya calculado por `prediccion.calcular_prediccion`
 y devuelve {"fuente": "gemini"|"reglas", "recomendaciones": [{"titulo", "detalle"}]}.
@@ -11,7 +11,7 @@ from datetime import datetime
 
 from google.genai import types
 
-# Mismos modelos candidatos y timeout de §1.4
+# Modelos candidatos en orden de preferencia y timeout de la llamada
 MODELOS_CANDIDATOS = [
     'gemini-3.5-flash-lite',
     'gemini-3.8-flash',
@@ -32,7 +32,7 @@ def hay_api_key_valida() -> bool:
 
 
 def _resumen_compacto(resumen: dict) -> str:
-    """Resumen top 10 de demanda, mermas y compras. No se envían filas crudas del historial (§1.4)."""
+    """Resumen top 10 de demanda, mermas y compras. No se envían filas crudas del historial."""
     lineas = []
     demanda = resumen.get("demanda", [])[:TOP_N_RESUMEN]
     if demanda:
@@ -127,7 +127,7 @@ def _formatear_ddmm(fecha_iso: str) -> str:
 
 
 def insights_por_reglas(resumen: dict) -> list:
-    """Fallback de §1.4: 2-3 recomendaciones por plantilla desde compras y mermas."""
+    """Fallback por reglas: 2-3 recomendaciones por plantilla desde compras y mermas."""
     recomendaciones = []
     for compra in resumen.get("compras", [])[:2]:
         recomendaciones.append({
@@ -163,7 +163,7 @@ def _ins_insuficiente() -> dict:
 
 
 def generar_insights(resumen: dict, client) -> dict:
-    """Insights en lenguaje natural: Gemini si es posible, reglas en cualquier otro caso (§1.4)."""
+    """Insights en lenguaje natural: Gemini si es posible, reglas en cualquier otro caso."""
     if resumen.get("datosInsuficientes"):
         return _ins_insuficiente()
     if not hay_api_key_valida():

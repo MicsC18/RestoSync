@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 
 /**
- * ABM de cuentas de gerente (Fase 5). Solo el Admin del restaurante puede operarlas;
+ * ABM de cuentas de gerente. Solo el Admin del restaurante puede operarlas;
  * el gerente creado queda con `rol=GERENTE_LOCAL` y un local del mismo restaurante.
  * El signup público sigue creando únicamente Admins.
  */

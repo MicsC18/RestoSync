@@ -48,7 +48,7 @@ class PlatoController(
         menuService.eliminarPlato(SecurityUtils.principalActual(), localIdHeader, id)
     }
 
-    /** Prepara el plato: descuenta stock FIFO (§4.4) y lo asocia a una mesa si se indica. */
+    /** Prepara el plato: descuenta stock FIFO y lo asocia a una mesa si se indica. */
     @PostMapping("/{id}/preparar")
     fun preparar(
         @PathVariable id: Long,

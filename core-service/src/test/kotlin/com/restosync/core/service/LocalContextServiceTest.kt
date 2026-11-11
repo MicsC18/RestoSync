@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
- * Tests mínimos de Fase 6 — roles y scope por local (sin base de datos).
+ * Tests mínimos de roles y scope por local (sin base de datos).
  * Gerente: local fijo del token, ignora el header. Admin: exige X-Local-Id
  * y solo puede operar locales de su propio restaurante.
  */

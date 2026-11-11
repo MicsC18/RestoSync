@@ -7,9 +7,9 @@ import jakarta.persistence.*
 /**
  * Línea de receta: un ingrediente del plato con su cantidad.
  *
- * `insumo` referencia una fila concreta del inventario (una por vencimiento, §4.5),
+ * `insumo` referencia una fila concreta del inventario (una por vencimiento),
  * pero al preparar el stock se calcula y descuenta **agrupando las filas homónimas**
- * del local por nombre (FIFO por vencimiento, §4.4). Por eso la fila referenciada
+ * del local por nombre (FIFO por vencimiento). Por eso la fila referenciada
  * nunca se elimina al quedar en cero: rompería esta FK y la auditoría.
  */
 @Entity

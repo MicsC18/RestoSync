@@ -13,9 +13,8 @@ enum class EstadoMesa {
 }
 
 /**
- * Mesa del mapa de un local. El backend (CRUD) se adelanta a Fase 3 para que
- * "preparar un plato para una mesa" tenga una entidad real; el mapa visual
- * `/mesas` (posición, arrastrar, estados) se construye en Fase 4.
+ * Mesa del mapa de un local. "Preparar un plato para una mesa" opera sobre esta
+ * entidad real; el mapa visual `/mesas` maneja posición, arrastrar y estados.
  */
 @Entity
 @Table(name = "mesas")
@@ -39,7 +38,7 @@ data class Mesa(
     val estado: EstadoMesa = EstadoMesa.LIBRE,
 
     /**
-     * Inicio de la ocupación actual (Plan-Mesas-Dictado §1). Solo tiene valor con
+     * Inicio de la ocupación actual. Solo tiene valor con
      * estado OCUPADA: marca desde qué momento la mesa muestra sus "platos actuales";
      * al liberarse se pone null y la historia sigue intacta en `producciones`.
      */

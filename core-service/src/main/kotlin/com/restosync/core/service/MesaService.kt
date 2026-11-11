@@ -14,8 +14,8 @@ import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDateTime
 
 /**
- * Mesas por local. El CRUD se adelanta a Fase 3 para que "preparar un plato para una
- * mesa" tenga una entidad real; el mapa visual `/mesas` se construye en Fase 4.
+ * Mesas por local: entidad real para "preparar un plato para una mesa" y para el
+ * mapa visual `/mesas` (posición, arrastrar, estados).
  */
 @Service
 class MesaService(
@@ -54,7 +54,7 @@ class MesaService(
         val local = localContextService.resolverLocal(principal, localIdHeader)
         val mesa = mesaDelLocal(local, id)
         val nuevoEstado = parseEstado(request.estado) ?: mesa.estado
-        // Plan-Mesas-Dictado §1.3: la marca de ocupación sólo se (re)inicia al pasar a
+        // La marca de ocupación sólo se (re)inicia al pasar a
         // OCUPADA desde otro estado; liberar (LIBRE/RESERVADA) la borra. OCUPADA->OCUPADA
         // la conserva para no reiniciar la sesión de platos en curso.
         val nuevaMarca = when {

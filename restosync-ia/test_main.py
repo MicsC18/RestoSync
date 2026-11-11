@@ -77,7 +77,7 @@ def test_escanear_ticket_falla_api(mock_generate_content):
     assert "Servicio de IA no disponible" in response.json()["detail"]
 
 
-# ---------- POST /api/v1/ia/dictar-insumos (Plan-Mesas-Dictado §2.3 / §2.6) ----------
+# ---------- POST /api/v1/ia/dictar-insumos ----------
 
 @patch("main.client.models.generate_content")
 def test_dictar_insumos_exito(mock_generate_content):

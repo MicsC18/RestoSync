@@ -44,7 +44,7 @@ data class PrepararRequest(
     val mesaId: Long? = null
 )
 
-/** Stock restante de un ingrediente tras preparar (agrupado por nombre, §4.4). */
+/** Stock restante de un ingrediente tras preparar (agrupado por nombre). */
 data class StockRestanteDto(
     val nombre: String,
     val unidadMedida: String,

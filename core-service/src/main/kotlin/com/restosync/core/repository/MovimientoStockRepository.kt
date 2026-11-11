@@ -12,13 +12,13 @@ interface MovimientoStockRepository : JpaRepository<MovimientoStock, Long> {
     fun deleteByInsumoId(insumoId: Long)
     fun countByUsuarioId(usuarioId: Long): Long
 
-    /** Ventana de movimientos del local para la serie histórica (§1.1 del Plan-IA). */
+    /** Ventana de movimientos del local para la serie histórica. */
     fun findByLocalIdAndFechaHoraBetweenOrderByFechaHoraAsc(
         localId: Long,
         desde: LocalDateTime,
         hasta: LocalDateTime
     ): List<MovimientoStock>
 
-    /** Guarda de idempotencia del seed histórico (§2.3). */
+    /** Guarda de idempotencia del seed histórico. */
     fun existsByLocalIdAndMotivo(localId: Long, motivo: String): Boolean
 }

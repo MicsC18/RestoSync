@@ -13,7 +13,7 @@ interface ProduccionRepository : JpaRepository<Produccion, Long> {
     fun findByMesaId(mesaId: Long): List<Produccion>
     fun countByUsuarioId(usuarioId: Long): Long
     fun countByLocalId(localId: Long): Long
-    /** Producciones de la ventana histórica del local para la analítica (§1.1 del Plan-IA). */
+    /** Producciones de la ventana histórica del local para la analítica. */
     fun findByLocalIdAndFechaHoraBetween(
         localId: Long,
         desde: LocalDateTime,

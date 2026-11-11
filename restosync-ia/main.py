@@ -68,7 +68,7 @@ def listar_modelos():
     return {"modelos_disponibles": modelos}
 
 
-# ---------- Modelos del monitor predictivo (espejo de Plan-IA §1.1 y §1.2) ----------
+# ---------- Modelos del monitor predictivo (espejo del contrato del core) ----------
 
 class LoteHistorial(BaseModel):
     cantidad: float
@@ -166,7 +166,7 @@ HORIZONTE_MAXIMO = 30
 
 @app.post("/api/v1/ia/prediccion-demanda", response_model=PrediccionResponse)
 def prediccion_demanda(request: PrediccionRequest):
-    """Monitor predictivo: pandas calcula los números; Gemini solo redacta insights (§0.2, §1.2)."""
+    """Monitor predictivo: pandas calcula los números; Gemini solo redacta insights."""
     horizonte = max(HORIZONTE_MINIMO, min(HORIZONTE_MAXIMO, request.horizonteDias))
     historial_dict = request.historial.model_dump(mode="json")
     resumen = calcular_prediccion(historial_dict, horizonte)
@@ -292,7 +292,7 @@ async def escanear_ticket(file: UploadFile = File(...)):
         )
 
 
-# ---------- Dictado por voz → insumos (Plan-Mesas-Dictado §2.3) ----------
+# ---------- Dictado por voz → insumos ----------
 
 class DictarRequest(BaseModel):
     texto: str

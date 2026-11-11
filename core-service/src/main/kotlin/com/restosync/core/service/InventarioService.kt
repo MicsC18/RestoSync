@@ -25,7 +25,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 /**
- * Inventario por local: alta con merge (§4.5 del plan), CRUD correctivo,
+ * Inventario por local: alta con merge por vencimiento, CRUD correctivo,
  * lotes y movimientos de stock auditables.
  *
  * Regla de merge: mismo nombre (normalizado) + mismo vencimiento en el local → suma
@@ -80,7 +80,7 @@ class InventarioService(
         return insumoRepository.findByLocalId(local.id)
     }
 
-    /** Alta principal (IA / dictado) y auxiliar (manual). Aplica merge §4.5. */
+    /** Alta principal (IA / dictado) y auxiliar (manual). Aplica merge por vencimiento. */
     @Transactional
     fun registrarCompra(principal: UsuarioPrincipal, localIdHeader: Long?, request: InsumoRequest): Insumo {
         val local = localContextService.resolverLocal(principal, localIdHeader)
@@ -98,7 +98,7 @@ class InventarioService(
         }
         val fechaVencimiento = LocalDate.now().plusDays(diasRestantes.toLong())
 
-        // Merge (§4.5): entre las filas homónimas, solo suma la que ya tenga un lote
+        // Merge: entre las filas homónimas, solo suma la que ya tenga un lote
         // con este vencimiento exacto. Si el vencimiento es distinto → fila nueva, visible,
         // con su propio lote (no se mezcla con el stock de otro vencimiento).
         var existente: Insumo? = null
@@ -156,7 +156,7 @@ class InventarioService(
         val local = localContextService.resolverLocal(principal, localIdHeader)
         val insumo = insumoDelLocal(local, id)
 
-        // El mismo nombre con distinto vencimiento es válido (filas independientes, §4.5);
+        // El mismo nombre con distinto vencimiento es válido (filas independientes);
         // no se rechaza el renombre a un nombre ya existente.
         val nombre = request.nombre.trim().ifBlank { insumo.nombre }
 
@@ -323,7 +323,7 @@ class InventarioService(
     }
 
     // =========================
-    // DESCUENTO FIFO (§4.4)
+    // DESCUENTO FIFO
     // =========================
 
     /** Stock total disponible de un ingrediente agrupando las filas homónimas del local. */
@@ -335,7 +335,7 @@ class InventarioService(
 
     /**
      * Descuenta `cantidad` consumiendo FIFO por `fechaVencimiento` entre **todas** las filas
-     * homónimas del local (§4.4). Audita cada porción consumida con `tipo`/`motivo` y recalcula
+     * homónimas del local. Audita cada porción consumida con `tipo`/`motivo` y recalcula
      * los agregados de cada fila afectada. La fila que queda en cero **no se elimina**: las
      * recetas la referencian por id y la auditoría debe sobrevivir (solo se borran lotes vacíos).
      * Devuelve las filas afectadas con sus agregados ya actualizados.
@@ -386,7 +386,7 @@ class InventarioService(
     }
 
     // =========================
-    // MIGRACIÓN LEGACY (§4.5.7)
+    // MIGRACIÓN LEGACY
     // =========================
 
     /** Insumos viejos sin lotes → lote inicial con su cantidad y vencimiento estimado. */
@@ -419,7 +419,7 @@ class InventarioService(
     }
 
     /**
-     * Las filas creadas antes del fix de §4.5 pueden esconder lotes con vencimientos
+     * Las filas creadas antes del fix de merge pueden esconder lotes con vencimientos
      * distintos (la tabla mostraba solo el más próximo y el merge sumaba contra lotes
      * invisibles). Se separa en una fila por vencimiento para que todo quede visible.
      * Idempotente: tras la primera pasada cada fila tiene una sola fecha.

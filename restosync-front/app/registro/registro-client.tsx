@@ -9,6 +9,7 @@ import {
   CATEGORIAS_BASE,
   TIPOS_UNIDAD,
   UNIDADES_POR_TIPO,
+  etiquetaUnidad,
   normalizarUnidad,
   tipoDeUnidad,
   unidadPorDefecto,
@@ -48,7 +49,7 @@ type ProductoDetectado = {
   categoria: string;
   icono: string;
   cantidad: number;
-  /** Unidad real del ítem; la trae la IA, el mock o el parser local (§2.5). */
+  /** Unidad real del ítem; la trae la IA, el mock o el parser local. */
   unidadMedida: string;
   diasRestantes: number;
   estado: 'Cerrado' | 'Abierto';
@@ -76,7 +77,7 @@ export default function RegistroClient() {
   // Aviso sutil del dictado (corte por silencio, uso del parser local): no es error.
   const [avisoDictado, setAvisoDictado] = useState('');
 
-  // Instancia viva del reconocedor: la manipulan los botones empezar/terminar (§2.2).
+  // Instancia viva del reconocedor: la manipulan los botones empezar/terminar.
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   // True cuando el stop() lo pidió el usuario; evita el aviso de "se cortó sola".
   const paradaManualRef = useRef(false);
@@ -138,7 +139,7 @@ export default function RegistroClient() {
         Array.isArray(data.itemsEncontrados)
           ? data.itemsEncontrados.map((item) => ({
               ...item,
-              // Tickets: si Gemini no informó la unidad (o trajo una legacy), se normaliza (§2.5).
+              // Tickets: si Gemini no informó la unidad (o trajo una legacy), se normaliza.
               unidadMedida: normalizarUnidad(item.unidadMedida),
             }))
           : []
@@ -190,7 +191,7 @@ export default function RegistroClient() {
 
     recognition.lang = 'es-AR';
     // Grabación continua con resultado provisorio: acumula varias frases hasta
-    // que el usuario presiona "Terminar de grabar" (§2.2).
+    // que el usuario presiona "Terminar de grabar".
     recognition.continuous = true;
     recognition.interimResults = true;
 
@@ -243,7 +244,7 @@ export default function RegistroClient() {
     recognitionRef.current?.stop();
   };
 
-  // Transforma el texto acumulado en ítems de inventario (IA con fallback local, §2.4).
+  // Transforma el texto acumulado en ítems de inventario (IA con fallback local).
   const procesarDictadoARevision = async () => {
     const texto = transcripcion.trim();
     if (!texto || grabando || procesandoDictado) return;
@@ -826,7 +827,7 @@ export default function RegistroClient() {
                             ...UNIDADES_POR_TIPO[tipoDeUnidad(prod.unidadMedida)],
                             prod.unidadMedida,
                           ])).filter(Boolean).map((unidad) => (
-                            <option key={unidad} value={unidad}>{unidad}</option>
+                            <option key={unidad} value={unidad}>{etiquetaUnidad(unidad)}</option>
                           ))}
                         </select>
                       </div>

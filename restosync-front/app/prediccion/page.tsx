@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatearCantidad } from '@/lib/numero';
+import { etiquetaUnidad } from '@/lib/insumos';
 import { useAuthSession } from '@/lib/use-auth-session';
 import AppHeader from '@/components/app-header';
 import DemandaChart from '@/components/graficos/demanda-chart';
@@ -28,7 +29,7 @@ const HORIZONTES = [7, 14, 30];
 export default function PrediccionPage() {
   const { token, checking, logout, sesion, localActivoId, setLocalActivoId } = useAuthSession();
 
-  // Estado del monitor predictivo (Plan-IA §4.3).
+  // Estado del monitor predictivo.
   const [prediccion, setPrediccion] = useState<PrediccionResponse | null>(null);
   const [cargandoPrediccion, setCargandoPrediccion] = useState(true);
   const [errorPrediccion, setErrorPrediccion] = useState('');
@@ -180,7 +181,7 @@ export default function PrediccionPage() {
                   </p>
                   <p className="text-sm text-resto-manteca/70">
                     Cobertura de {quiebreMasUrgente.coberturaDias} días · consumo base{' '}
-                    {formatearCantidad(quiebreMasUrgente.consumoDiarioBase)} {quiebreMasUrgente.unidadMedida}/día.
+                    {formatearCantidad(quiebreMasUrgente.consumoDiarioBase)} {etiquetaUnidad(quiebreMasUrgente.unidadMedida)}/día.
                   </p>
                 </div>
               </div>
@@ -225,7 +226,7 @@ export default function PrediccionPage() {
                       <li key={`lista-${compra.insumoId}`} className="py-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-bold text-sm truncate">
-                            {compra.icono ?? '📦'} {compra.nombre} · {formatearCantidad(compra.cantidadSugerida)} {compra.unidadMedida}
+                            {compra.icono ?? '📦'} {compra.nombre} · {formatearCantidad(compra.cantidadSugerida)} {etiquetaUnidad(compra.unidadMedida)}
                           </p>
                           <p className="text-xs text-resto-acero">{compra.motivo}</p>
                         </div>
@@ -258,7 +259,7 @@ export default function PrediccionPage() {
                         <tr key={`merma-${merma.insumoId}-${merma.fechaVencimiento}`}>
                           <td className="py-2.5 font-bold">{merma.icono ?? '📦'} {merma.nombre}</td>
                           <td className="py-2.5 text-resto-acero">
-                            {formatearCantidad(merma.cantidadEnRiesgo)} {merma.unidadMedida}
+                            {formatearCantidad(merma.cantidadEnRiesgo)} {etiquetaUnidad(merma.unidadMedida)}
                           </td>
                           <td className="py-2.5">
                             <div className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-"""Tests del monitor predictivo (Plan-IA §3.3).
+"""Tests del monitor predictivo.
 
 1. consumo constante → base, proyección y quiebre exactos
 2. patrón semanal → factores acotados a 2.0
@@ -86,7 +86,7 @@ def test_prediccion_patron_semanal():
     resultado = calcular_prediccion(historial, horizonte=14)
     item = resultado["demanda"][0]
     base = item["consumoDiarioBase"]  # (8*20 + 20*1)/28 ≈ 6.43
-    esperado_alto = round(base * 2.0, 2)  # factor crudo > 2 → acotado a 2.0 (§1.3)
+    esperado_alto = round(base * 2.0, 2)  # factor crudo > 2 → acotado a 2.0
     for p in item["proyeccion"]:
         dia = date.fromisoformat(p["fecha"])
         if dia.weekday() in (4, 5):
@@ -149,7 +149,7 @@ def test_historial_insuficiente():
 
 
 def test_insights_fallback_sin_gemini(monkeypatch):
-    # Sin clave válida no se toca la red: las recomendaciones salen de plantillas (§1.4)
+    # Sin clave válida no se toca la red: las recomendaciones salen de plantillas
     monkeypatch.setattr(recomendaciones, "hay_api_key_valida", lambda: False)
     hoy = date.today()
     lotes = [{"cantidad": 5.0, "fechaVencimiento": _iso(hoy + timedelta(days=2))}]
@@ -187,7 +187,7 @@ def test_insights_gemini_mockeado(monkeypatch, gemini_falla):
 
         response = client.post(HISTORIAL_ENDPOINT, json={"historial": historial, "horizonteDias": 7})
 
-    assert response.status_code == 200  # el endpoint nunca falla por Gemini (§1.2)
+    assert response.status_code == 200  # el endpoint nunca falla por Gemini
     insights = response.json()["insights"]
     if gemini_falla:
         assert insights["fuente"] == "reglas"

@@ -1,7 +1,7 @@
 import { aiServiceUrl, apiUrl, authHeaders } from '@/lib/api';
 import { prediccionDemandaMock, usarMockIa } from '@/lib/ia-mock';
 
-// ---------- Tipos espejo del HistorialResponse del core (Plan-IA §1.1) ----------
+// ---------- Tipos espejo del HistorialResponse del core ----------
 
 export type LoteHistorial = {
   cantidad: number;
@@ -43,7 +43,7 @@ export type HistorialResponse = {
   producciones: ProduccionDiaria[];
 };
 
-// ---------- Tipos espejo de la PrediccionResponse de la IA (Plan-IA §1.2) ----------
+// ---------- Tipos espejo de la PrediccionResponse de la IA ----------
 
 export type PuntoProyeccion = {
   fecha: string;
@@ -111,7 +111,7 @@ export type PrediccionResponse = {
 const TIMEOUT_HISTORIAL_MS = 15_000; // core-service
 const TIMEOUT_PREDICCION_MS = 20_000; // IA: cubre el peor caso (Gemini timeout 15 s → fallback a reglas)
 
-/** Pide el historial agregado al core-service (JWT + X-Local-Id, §1.1). */
+/** Pide el historial agregado al core-service (JWT + X-Local-Id). */
 export async function pedirHistorial(
   token: string,
   localId: number,
@@ -128,7 +128,7 @@ export async function pedirHistorial(
 }
 
 /**
- * Envía el historial al microservicio de IA y devuelve la proyección (§1.2).
+ * Envía el historial al microservicio de IA y devuelve la proyección.
  * Con NEXT_PUBLIC_USE_IA_MOCK=true usa el mock local sin tocar el puerto 8000.
  * Si el servicio está caído o colgado, el timeout aborta el fetch y el llamador
  * (page.tsx) toma el catch → tarjeta "IA fuera de servicio" + Reintentar.

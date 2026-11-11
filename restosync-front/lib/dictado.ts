@@ -1,5 +1,5 @@
 /**
- * Dictado por voz → ítems de insumos (Plan-Mesas-Dictado §2.4).
+ * Dictado por voz → ítems de insumos.
  *
  * Flujo híbrido: primero intenta con el microservicio de IA
  * (`POST /api/v1/ia/dictar-insumos` en restosync-ia); si el servicio no está,
@@ -132,7 +132,7 @@ const VERBO_INICIAL = /^(compre|compra|comamos|necesitamos|necesito|falta|faltan
 const RELLENO_INICIAL = /^(?:de|del|la|el|los|las|con|y|o|un|una|e)\b[\s']*/i;
 
 /**
- * Extrae productos del texto dictado sin IA. Casos de referencia (verificación manual §2.6):
+ * Extrae productos del texto dictado sin IA. Casos de referencia:
  *  - "dos kilos de tomates y tres litros de leche"
  *      → Tomates 2 kg + Leche 3 l (divide por " y ", detecta cantidad+unidad)
  *  - "un chorizo" → Chorizo 1 unidad

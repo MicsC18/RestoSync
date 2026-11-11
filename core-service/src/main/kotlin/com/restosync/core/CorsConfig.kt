@@ -17,7 +17,7 @@ class CorsConfig {
         config.allowCredentials = true
 
         // Orígenes (los mismos que restosync-ia/main.py autoriza).
-        // Si se agrega uno acá, se agrega allá también — Plan-Mejoras.md §5.
+        // Si se agrega uno acá, se agrega allá también.
         config.allowedOriginPatterns = listOf(
             "http://localhost:3000",
             "http://127.0.0.1:3000",

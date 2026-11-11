@@ -11,7 +11,7 @@ Convenciones generales del proyecto: [`../AGENTS.md`](../AGENTS.md).
    `"Cerrado"`.
 2. **Dictado de insumos** — `POST /api/v1/ia/dictar-insumos` (`main.py`, body `{ texto }`):
    mismo contrato que tickets **más** `unidadMedida`, extraído del texto ("dos kilos de tomates"
-   → `2` / `"Kilos"`; `"Unidades"` si el dictado no indica ninguna). Un producto = un ítem (si
+   → `2` / `"kg"`; `"unidad"` si el dictado no indica ninguna). Un producto = un ítem (si
    se repite, se suma), y un texto sin productos = lista vacía.
 3. **Monitor predictivo** — `POST /api/v1/ia/prediccion-demanda`: recibe el historial ya armado
    por el front en el body y devuelve demanda proyectada, mermas, compras e insights.
@@ -33,7 +33,7 @@ Convenciones generales del proyecto: [`../AGENTS.md`](../AGENTS.md).
   servicio sin consenso.
 - El servicio **no accede a la base de datos ni conoce roles/usuarios**; el historial llega en el
   body desde el navegador. Una propuesta de "conectar la IA a Postgres" o de "autenticar la IA" se
-  rechaza por diseño (ver `Plan-Mejoras.md` §6).
+  rechaza por diseño.
 
 ## Endpoints y CORS
 
@@ -53,7 +53,7 @@ y no a la otra deja los endpoints desalineados); nunca se deja un único modelo 
 clave ausente es intencional: el front tiene su flag `NEXT_PUBLIC_USE_IA_MOCK` para trabajar sin IA.
 
 La normalización **defensiva post-response** es obligatoria en los dos endpoints de extracción:
-`setdefault`/`or` por clave (`unidadMedida → "Unidades"`, `diasRestantes → 30`, `categoria →
+`setdefault`/`or` por clave (`unidadMedida → "unidad"`, `diasRestantes → 30`, `categoria →
 "Almacén"`, ítems sin `nombre` se descartan) porque el front depende del contrato completo.
 
 ## Secretos
