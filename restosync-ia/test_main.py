@@ -55,7 +55,7 @@ def test_escanear_ticket_exito(mock_generate_content):
     assert len(data["itemsEncontrados"]) == 1
     
     item = data["itemsEncontrados"][0]
-    assert item["nombre"] == "Leche Larga Vida"
+    assert item["nombre"] == "Leche larga vida"
     # El backend debe asignar estado cerrado automáticamente
     assert item["estado"] == "Cerrado"
 
@@ -75,6 +75,48 @@ def test_escanear_ticket_falla_api(mock_generate_content):
 
     assert response.status_code == 503
     assert "Servicio de IA no disponible" in response.json()["detail"]
+
+
+@patch("main.client.models.generate_content")
+def test_escanear_ticket_envase_se_convierte_a_unidad_de_medida(mock_generate_content):
+    # Gemini lee el ticket como bultos contables y deja el tamaño en el nombre:
+    # la normalización debe producir el mismo ítem que el dictado (10 × 1 l = 10 l).
+    respuesta_simulada = {
+        "itemsEncontrados": [
+            {
+                "nombre": "Leche Larga Vida 1L",
+                "categoria": "Lácteos",
+                "icono": "🥛",
+                "cantidad": 10,
+                "unidadMedida": "unidad",
+                "diasRestantes": 180
+            },
+            {
+                "nombre": "Arroz de 500 g",
+                "cantidad": 3,
+                "unidadMedida": "unidad"
+            }
+        ]
+    }
+
+    mock_response = MagicMock()
+    mock_response.text = json.dumps(respuesta_simulada)
+    mock_generate_content.return_value = mock_response
+
+    response = client.post(
+        "/api/v1/ia/escanear-ticket",
+        files={"file": ("ticket.jpg", b"fake image bytes", "image/jpeg")}
+    )
+
+    assert response.status_code == 200
+    leche, arroz = response.json()["itemsEncontrados"]
+    assert leche["nombre"] == "Leche larga vida"
+    assert leche["cantidad"] == 10
+    assert leche["unidadMedida"] == "l"
+    assert arroz["nombre"] == "Arroz"
+    assert arroz["cantidad"] == 1500
+    assert arroz["unidadMedida"] == "g"
+    assert arroz["estado"] == "Cerrado"
 
 
 # ---------- POST /api/v1/ia/dictar-insumos ----------
@@ -123,6 +165,35 @@ def test_dictar_insumos_exito(mock_generate_content):
     assert segundo["unidadMedida"] == "unidad"
     assert segundo["icono"] == "🛒"
     assert segundo["estado"] == "Cerrado"
+
+
+@patch("main.client.models.generate_content")
+def test_dictar_insumos_envase_con_cantidad_ya_total_solo_limpia_nombre(mock_generate_content):
+    # Si Gemini ya devolvió el total en unidad de medida, el tamaño del nombre
+    # se limpia sin volver a multiplicar (misma regla que el ticket).
+    respuesta_simulada = {
+        "itemsEncontrados": [
+            {"nombre": "Leche larga vida de 1 litro", "cantidad": 10, "unidadMedida": "l"},
+            {"nombre": "Huevos", "cantidad": 24, "unidadMedida": "unidad"}
+        ]
+    }
+
+    mock_response = MagicMock()
+    mock_response.text = json.dumps(respuesta_simulada)
+    mock_generate_content.return_value = mock_response
+
+    response = client.post(
+        "/api/v1/ia/dictar-insumos",
+        json={"texto": "diez leches larga vida de un litro y dos docenas de huevos"}
+    )
+
+    assert response.status_code == 200
+    leche, huevos = response.json()["itemsEncontrados"]
+    assert leche["nombre"] == "Leche larga vida"
+    assert leche["cantidad"] == 10
+    assert leche["unidadMedida"] == "l"
+    assert huevos["cantidad"] == 24
+    assert huevos["unidadMedida"] == "unidad"
 
 
 @patch.dict(os.environ, {"GEMINI_API_KEY": ""})

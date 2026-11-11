@@ -64,9 +64,10 @@ inglés. No introducir labels en inglés en componentes.
 
 ## 6. Reglas de dominio que no se pueden romper
 
-- Alta de lote existente si coincide `local` + nombre normalizado + **vencimiento exacto**; se
-  acumula la cantidad. **Vencimiento distinto crea fila visible nueva** (no se oculta ni se
-  fusiona con otro lote).
+- Merge de filas equivalentes si coincide `local` + nombre normalizado + **misma unidad** +
+  **vencimiento exacto**; se acumula la cantidad. Aplica al **alta y a la edición**: si al corregir
+  una fila queda igual a otra, se fusionan en la existente (lotes, recetas y auditoría incluidas).
+  **Vencimiento distinto crea fila visible nueva** (no se oculta ni se fusiona con otro lote).
 - Al preparar una receta se agrupan las filas homónimas del insumo y se consume **FIFO por
   vencimiento**.
 - La fila en stock cero **no se borra**: queda como registro.

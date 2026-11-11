@@ -16,7 +16,7 @@ import {
   type TipoUnidad,
 } from '@/lib/insumos';
 import { redondearCantidad } from '@/lib/numero';
-import { procesarDictado, type ItemDictado } from '@/lib/dictado';
+import { procesarDictado, normalizarItemsCompra, type ItemCompra } from '@/lib/dictado';
 
 type SpeechRecognitionAlternative = { transcript: string };
 
@@ -44,16 +44,8 @@ type SpeechRecognitionInstance = {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
-type ProductoDetectado = {
-  nombre: string;
-  categoria: string;
-  icono: string;
-  cantidad: number;
-  /** Unidad real del ítem; la trae la IA, el mock o el parser local. */
-  unidadMedida: string;
-  diasRestantes: number;
-  estado: 'Cerrado' | 'Abierto';
-};
+/** Mismo contrato que el dictado: ticket y audio producen ítems intercambiables. */
+type ProductoDetectado = ItemCompra;
 
 export default function RegistroClient() {
   const { token, checking, localActivoId } = useAuthSession();
@@ -133,17 +125,9 @@ export default function RegistroClient() {
         );
       }
 
-      const data: { itemsEncontrados?: ProductoDetectado[] } =
-        await response.json();
-      setProductos(
-        Array.isArray(data.itemsEncontrados)
-          ? data.itemsEncontrados.map((item) => ({
-              ...item,
-              // Tickets: si Gemini no informó la unidad (o trajo una legacy), se normaliza.
-              unidadMedida: normalizarUnidad(item.unidadMedida),
-            }))
-          : []
-      );
+      const data: { itemsEncontrados?: unknown } = await response.json();
+      // Mismo normalizador que el dictado: defaults del contrato y envase → cantidad.
+      setProductos(normalizarItemsCompra(data.itemsEncontrados));
 
     } catch (error: unknown) {
       console.error(
@@ -262,12 +246,8 @@ export default function RegistroClient() {
         return;
       }
 
-      // Normalizamos acá para garantizar `unidadMedida` incluso con respuestas viejas.
-      const nuevos: ProductoDetectado[] = items.map((item: ItemDictado) => ({
-        ...item,
-        unidadMedida: normalizarUnidad(item.unidadMedida),
-      }));
-      setProductos((actuales) => [...actuales, ...nuevos]);
+      // procesarDictado ya devuelve el contrato normalizado (mismo que el ticket).
+      setProductos((actuales) => [...actuales, ...items]);
 
       if (fuente === 'local') {
         setAvisoDictado(
